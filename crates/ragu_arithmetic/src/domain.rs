@@ -199,7 +199,7 @@ fn test_fft() {
     let params = Domain::<F>::new(4);
 
     let coeffs = (0..params.n)
-        .map(|i| F::DELTA.pow(&[(i + 1) as u64]))
+        .map(|i| F::DELTA.pow([(i + 1) as u64]))
         .collect::<Vec<_>>();
     let mut evals = coeffs.clone();
 
@@ -208,7 +208,7 @@ fn test_fft() {
     {
         let mut p = F::ONE;
         for i in 0..params.n {
-            assert_eq!(evals[i as usize], eval(&coeffs, p));
+            assert_eq!(evals[i], eval(&coeffs, p));
             p *= params.omega;
         }
     }

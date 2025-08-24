@@ -266,7 +266,7 @@ fn test_add_incomplete() -> Result<()> {
 
     for p in &points {
         for q in &points {
-            let sim = Simulator::simulate((p.clone(), q.clone()), |dr, witness| {
+            let sim = Simulator::simulate((*p, *q), |dr, witness| {
                 let (p, q) = witness.cast();
                 let p_gadget = Point::alloc(dr, p.clone())?;
                 let q_gadget = Point::alloc(dr, q.clone())?;
@@ -319,7 +319,7 @@ fn test_double_and_add_incomplete() -> Result<()> {
 
     for p in &points {
         for q in &points {
-            let sim = Simulator::simulate((p.clone(), q.clone()), |dr, witness| {
+            let sim = Simulator::simulate((*p, *q), |dr, witness| {
                 let (p, q) = witness.cast();
                 let p_gadget = Point::alloc(dr, p.clone())?;
                 let q_gadget = Point::alloc(dr, q.clone())?;

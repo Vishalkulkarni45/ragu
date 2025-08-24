@@ -185,7 +185,7 @@ pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
     }
 
     /// Compute the (partial) witness polynomial $r(X)$ for this stage.
-    fn rx<'source>(witness: Self::Witness<'source>) -> Result<structured::Polynomial<F, R>> {
+    fn rx(witness: Self::Witness<'_>) -> Result<structured::Polynomial<F, R>> {
         let values = {
             // TODO(ebfull): This simulator checks multiplication and linear
             // constraints are satisfied, but we just need the wire values.

@@ -249,7 +249,7 @@ mod tests {
                     tmp = -tmp;
                 }
                 if bits & Uendo::from(0b10u64) != Uendo::from(0u64) {
-                    tmp = tmp * F::ZETA;
+                    tmp *= F::ZETA;
                 }
                 acc = acc.double() + tmp;
             }

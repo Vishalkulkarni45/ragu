@@ -280,14 +280,14 @@ fn test_mul() {
 fn test_dot() {
     use pasta_curves::Fp as F;
 
-    let powers = vec![
+    let powers = [
         F::ONE,
         F::DELTA,
         F::DELTA.square(),
         F::DELTA.square() * F::DELTA,
         F::DELTA.square().square(),
     ];
-    let coeffs = vec![F::from(1), F::from(2), F::from(3), F::from(4), F::from(5)];
+    let coeffs = [F::from(1), F::from(2), F::from(3), F::from(4), F::from(5)];
 
     assert_eq!(
         dot(powers.iter(), coeffs.iter().rev().rev()),
@@ -305,13 +305,13 @@ fn test_factor() {
         F::from(348) * F::DELTA,
         F::from(438) * F::MULTIPLICATIVE_GENERATOR,
     ];
-    let x = F::from(F::TWO_INV);
+    let x = F::TWO_INV;
     let v = eval(poly.iter(), x);
     let quot = factor(poly.clone(), x);
     let mut quot_iter = factor_iter(poly.clone(), x).collect::<Vec<_>>();
     quot_iter.reverse();
     assert_eq!(quot, quot_iter);
-    let y = F::from(F::DELTA + F::from(100));
+    let y = F::DELTA + F::from(100);
     assert_eq!(eval(quot.iter(), y) * (y - x), eval(poly.iter(), y) - v);
 }
 

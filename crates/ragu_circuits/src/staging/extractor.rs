@@ -40,9 +40,7 @@ impl<'dr, D: Driver<'dr>> Driver<'dr> for WireExtractor<'dr, D> {
         Ok(())
     }
 
-    fn constant(&mut self, _: Coeff<Self::F>) -> Self::Wire {
-        ()
-    }
+    fn constant(&mut self, _: Coeff<Self::F>) -> Self::Wire {}
 
     fn mul(
         &mut self,
@@ -51,9 +49,7 @@ impl<'dr, D: Driver<'dr>> Driver<'dr> for WireExtractor<'dr, D> {
         Ok(((), (), ()))
     }
 
-    fn add(&mut self, _: impl Fn(Self::LCadd) -> Self::LCadd) -> Self::Wire {
-        ()
-    }
+    fn add(&mut self, _: impl Fn(Self::LCadd) -> Self::LCadd) -> Self::Wire {}
 
     fn enforce_zero(&mut self, _: impl Fn(Self::LCenforce) -> Self::LCenforce) -> Result<()> {
         Ok(())

@@ -40,7 +40,7 @@ struct GhostDriver<'a, 'dr, D: Driver<'dr>> {
     _marker: core::marker::PhantomData<(&'dr (), D)>,
 }
 
-impl<'a, 'dr, D: Driver<'dr>> DriverTypes for GhostDriver<'a, 'dr, D> {
+impl<'dr, D: Driver<'dr>> DriverTypes for GhostDriver<'_, 'dr, D> {
     type ImplField = D::F;
     type ImplWire = ();
     type MaybeKind = D::MaybeKind;
@@ -48,7 +48,7 @@ impl<'a, 'dr, D: Driver<'dr>> DriverTypes for GhostDriver<'a, 'dr, D> {
     type LCenforce = ();
 }
 
-impl<'a, 'dr, D: Driver<'dr>> Driver<'dr> for GhostDriver<'a, 'dr, D> {
+impl<'dr, D: Driver<'dr>> Driver<'dr> for GhostDriver<'_, 'dr, D> {
     type F = D::F;
     type Wire = ();
     const ONE: Self::Wire = ();
@@ -98,7 +98,7 @@ impl<
     /// Add the next stage to the builder, given its `witness`, returning its
     /// output.
     pub fn add_stage<Next: Stage<D::F, R, Parent = Current> + 'dr>(
-        mut self,
+        self,
         witness: Witness<D, Next::Witness<'source>>,
     ) -> Result<(
         <Next::OutputKind as GadgetKind<D::F>>::Rebind<'dr, D>,
@@ -107,7 +107,7 @@ impl<
         Ok((
             {
                 let mut dr = GhostDriver::<'_, '_, D> {
-                    underlying: &mut self.driver,
+                    underlying: self.driver,
                     alloc_count: 0,
                     _marker: core::marker::PhantomData,
                 };
