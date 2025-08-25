@@ -41,6 +41,14 @@ impl<'params, F: PrimeField, R: Rank> Mesh<'params, F, R> {
     where
         C: Circuit<F> + Send + 'params,
     {
+        self.add_circuit_object(circuit.into_object()?)
+    }
+
+    /// Adds a custom circuit object to this mesh.
+    pub fn add_circuit_object(
+        &mut self,
+        circuit: Box<dyn CircuitObject<F, R> + 'params>,
+    ) -> Result<F> {
         if self.circuits.len() >= self.domain.n() {
             return Err(Error::CircuitBoundExceeded(self.domain.n()));
         }
@@ -48,7 +56,7 @@ impl<'params, F: PrimeField, R: Rank> Mesh<'params, F, R> {
         let omega = self.current_omega;
         self.current_omega *= self.domain.omega();
 
-        self.circuits.push(circuit.into_object()?);
+        self.circuits.push(circuit);
 
         Ok(omega)
     }
