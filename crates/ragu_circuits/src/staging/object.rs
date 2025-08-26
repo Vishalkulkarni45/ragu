@@ -195,13 +195,13 @@ impl<F: Field, R: Rank> CircuitObject<F, R> for StageObject<R> {
 
 #[cfg(test)]
 mod tests {
-    use arithmetic::Uendo;
+    use arithmetic::{Coeff, Uendo};
     use ff::Field;
     use group::prime::PrimeCurveAffine;
     use proptest::prelude::*;
     use ragu_core::{
         Result,
-        drivers::{Coeff, Driver, LinearExpression, Witness},
+        drivers::{Driver, LinearExpression, Witness},
         gadgets::GadgetKind,
         maybe::Maybe,
     };

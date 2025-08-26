@@ -1,6 +1,7 @@
+use arithmetic::Coeff;
 use ragu_core::{
     Result,
-    drivers::{Coeff, Driver, DriverTypes, FromDriver},
+    drivers::{Driver, DriverTypes, FromDriver},
     gadgets::{Gadget, GadgetKind},
     maybe::Empty,
 };

@@ -1,6 +1,6 @@
+use arithmetic::Coeff;
 use ff::Field;
-
-use ragu_core::drivers::{Coeff, LinearExpression};
+use ragu_core::drivers::LinearExpression;
 
 pub mod sx;
 pub mod sxy;

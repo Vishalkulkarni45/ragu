@@ -13,11 +13,11 @@
 //! recovering the effective scalar that an endoscalar maps to for a particular
 //! prime field.
 
-use arithmetic::{CurveAffine, Uendo};
+use arithmetic::{Coeff, CurveAffine, Uendo};
 use ff::{Field, PrimeField, WithSmallOrderMulGroup};
 use ragu_core::{
     Result,
-    drivers::{Coeff, Driver, LinearExpression, Witness},
+    drivers::{Driver, LinearExpression, Witness},
     gadgets::Gadget,
     maybe::Maybe,
 };

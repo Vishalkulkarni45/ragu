@@ -1,8 +1,8 @@
-use arithmetic::CurveAffine;
+use arithmetic::{Coeff, CurveAffine};
 use ff::{Field, WithSmallOrderMulGroup};
 use ragu_core::{
     Error, Result,
-    drivers::{Coeff, Driver, LinearExpression, Witness},
+    drivers::{Driver, LinearExpression, Witness},
     gadgets::Gadget,
     maybe::Maybe,
 };

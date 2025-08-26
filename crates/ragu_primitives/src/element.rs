@@ -1,7 +1,8 @@
+use arithmetic::Coeff;
 use ff::Field;
 use ragu_core::{
     Error, Result,
-    drivers::{Coeff, Driver, LinearExpression, Witness},
+    drivers::{Driver, LinearExpression, Witness},
     gadgets::Gadget,
     maybe::Maybe,
 };

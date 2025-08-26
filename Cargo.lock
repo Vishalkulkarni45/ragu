@@ -337,6 +337,7 @@ version = "0.0.0"
 dependencies = [
  "ff",
  "pasta_curves",
+ "proptest",
  "ragu_macros",
  "rand 0.8.5",
 ]

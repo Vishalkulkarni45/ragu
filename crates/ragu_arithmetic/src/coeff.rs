@@ -3,9 +3,10 @@ use ff::Field;
 use core::ops::{Add, Mul};
 
 /// Represents a field element (typically a coefficient) that may have a special
-/// value. By representing these cases explicitly, `Coeff` enables drivers to
-/// optimize arithmetic operations, avoid unnecessary multiplications, and
-/// improve the efficiency of group arithmetic and circuit synthesis.
+/// value. By representing these cases explicitly, `Coeff` maintains context
+/// about field elements that can be leveraged to optimize arithmetic operations
+/// (like avoiding unnecessary field multiplications) and improve the efficiency
+/// of group arithmetic.
 #[derive(Copy, Clone, Debug)]
 pub enum Coeff<F: Field> {
     /// Represents `F::ZERO`.
@@ -97,8 +98,8 @@ impl<F: Field> Add for Coeff<F> {
 #[cfg(test)]
 mod tests {
     use super::Coeff;
+    use pasta_curves::Fp as F;
     use proptest::prelude::*;
-    use ragu_pasta::Fp as F;
 
     fn arb_fe() -> impl proptest::strategy::Strategy<Value = F> {
         use proptest::prelude::*;

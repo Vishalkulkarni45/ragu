@@ -1,7 +1,8 @@
+use arithmetic::Coeff;
 use ff::Field;
 use ragu_core::{
     Result,
-    drivers::{Coeff, Driver, Witness},
+    drivers::{Driver, Witness},
     gadgets::{Gadget, GadgetKind},
     routines::{Prediction, Routine},
 };

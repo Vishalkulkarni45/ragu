@@ -1,11 +1,9 @@
 //! This is an internal module used to store helper utilities that are not part
 //! of the public API (yet).
 
+use arithmetic::Coeff;
 use ff::Field;
-use ragu_core::{
-    drivers::Coeff,
-    maybe::{Maybe, MaybeKind},
-};
+use ragu_core::maybe::{Maybe, MaybeKind};
 
 /// Extension trait for `Maybe` that provides helper methods kept internal to
 /// this crate.

@@ -1,7 +1,8 @@
+use arithmetic::Coeff;
 use ff::Field;
 use ragu_core::{
     Result,
-    drivers::{Coeff, DirectSum, Driver, DriverTypes},
+    drivers::{DirectSum, Driver, DriverTypes},
     maybe::{Always, MaybeKind},
 };
 use ragu_primitives::serialize::GadgetSerialize;

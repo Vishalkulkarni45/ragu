@@ -1,10 +1,11 @@
-use core::marker::PhantomData;
-
+use arithmetic::Coeff;
 use ragu_core::{
     Result,
-    drivers::{Coeff, Driver, DriverTypes, FromDriver, Witness},
+    drivers::{Driver, DriverTypes, FromDriver, Witness},
     gadgets::{Gadget, GadgetKind},
 };
+
+use core::marker::PhantomData;
 
 use super::{Stage, StageExt};
 use crate::polynomials::Rank;
@@ -114,7 +115,9 @@ impl<
                 let gadget = Next::witness(&mut dr, witness)?.map_gadget(&mut dr)?;
 
                 if dr.alloc_count > Next::values() {
-                    return Err(ragu_core::Error::MultiplicationBoundExceeded(Next::num_multiplications()));
+                    return Err(ragu_core::Error::MultiplicationBoundExceeded(
+                        Next::num_multiplications(),
+                    ));
                 }
 
                 while dr.alloc_count < Next::values() {

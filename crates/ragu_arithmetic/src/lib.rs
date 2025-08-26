@@ -79,11 +79,13 @@ extern crate alloc;
 /// slightly more readable, but is not intended for use in other contexts.
 pub use ragu_macros::repr256;
 
+mod coeff;
 mod domain;
 mod fft;
 mod uendo;
 mod util;
 
+pub use coeff::Coeff;
 pub use domain::Domain;
 pub use fft::Ring;
 pub use util::{dot, eval, factor, factor_iter, geosum, mul};

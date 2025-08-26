@@ -44,6 +44,7 @@
 //! [`FromDriver`] trait to specify how wires can be translated from one driver
 //! to another.
 
+use arithmetic::Coeff;
 use ff::Field;
 
 use crate::{
@@ -53,14 +54,12 @@ use crate::{
     routines::{Routine, RoutineExt},
 };
 
-mod coeff;
 mod emulator;
 mod linexp;
 mod phantom;
 mod simulator;
 mod wireless;
 
-pub use coeff::Coeff;
 pub use emulator::Emulator;
 pub use linexp::{DirectSum, LinearExpression};
 pub use simulator::Simulator;
