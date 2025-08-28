@@ -85,11 +85,11 @@ impl<F: Field> Routine<F> for Evaluate {
                 let xinv = x
                     .invert()
                     .into_option()
-                    .ok_or(Error::InvalidWitness("division by zero".into()))?;
+                    .ok_or_else(|| Error::InvalidWitness("division by zero".into()))?;
                 let zinv = z
                     .invert()
                     .into_option()
-                    .ok_or(Error::InvalidWitness("division by zero".into()))?;
+                    .ok_or_else(|| Error::InvalidWitness("division by zero".into()))?;
                 let mut xz_step = xinv * z;
                 let mut xzinv_step = xinv * zinv;
                 let mut l = x.pow([(4 * self.n - 1) as u64]) * z.pow([2 * self.n as u64]);

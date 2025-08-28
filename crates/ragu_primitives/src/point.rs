@@ -28,9 +28,9 @@ impl<'dr, D: Driver<'dr, F = C::Base>, C: CurveAffine> Point<'dr, D, C> {
     pub fn alloc(dr: &mut D, p: Witness<D, C>) -> Result<Self> {
         let coordinates = D::with(|| {
             let coordinates = p.take().coordinates().into_option();
-            coordinates.ok_or(Error::InvalidWitness(
-                "point at infinity cannot be witnessed".into(),
-            ))
+            coordinates.ok_or_else(|| {
+                Error::InvalidWitness("point at infinity cannot be witnessed".into())
+            })
         })?;
 
         let (x, x2) = Element::alloc_square(dr, coordinates.view().map(|p| *p.x()))?;

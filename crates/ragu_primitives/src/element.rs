@@ -222,7 +222,7 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
                 .snag()
                 .invert()
                 .into_option()
-                .ok_or(Error::InvalidWitness("division by zero".into()))
+                .ok_or_else(|| Error::InvalidWitness("division by zero".into()))
         })?;
 
         let (a, b, c) = dr.mul(|| {
@@ -257,7 +257,7 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
                     .take()
                     .invert()
                     .into_option()
-                    .ok_or(Error::InvalidWitness("division by zero".into()))?)
+                    .ok_or_else(|| Error::InvalidWitness("division by zero".into()))?)
         })?;
 
         let (quotient, denominator, numerator) = dr.mul(|| {
