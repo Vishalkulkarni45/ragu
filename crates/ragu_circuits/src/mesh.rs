@@ -5,12 +5,10 @@ use crate::{
     Circuit, CircuitExt, CircuitObject,
     polynomials::{Rank, structured, unstructured},
 };
-use ahash::RandomState;
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 use arithmetic::Domain;
 use arithmetic::bitreverse;
 use ff::PrimeField;
-use hashbrown::HashMap;
 use ragu_core::{Error, Result};
 
 /// Builder for constructing a new [`Mesh`].
@@ -67,8 +65,8 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
         let mut reordered = Vec::with_capacity(domain_size);
         reordered.extend((0..domain_size).map(|_| None));
 
-        let mut omega_lsb_lookup =
-            HashMap::with_capacity_and_hasher(domain_size, RandomState::new());
+        // Build omega^j -> j lookup table.
+        let mut omega_lookup = BTreeMap::new();
 
         for (i, circuit) in self.circuits.into_iter().enumerate() {
             // Rather than assigning the `i`th circuit to `omega^i` in the final
@@ -80,11 +78,8 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
             // is *implicitly* performing domain extensions as smaller domains
             // become exhausted.
             let j = bitreverse(i as u32, log2_circuits) as usize;
-
-            // Builds O(1) omega lookup table.
-            let omega_j = domain.omega().pow([j as u64]);
-            let omega_lsb = Mesh::<F, R>::field_to_lsb(&omega_j);
-            omega_lsb_lookup.insert(omega_lsb, j);
+            let omega_j = OmegaKey::from(domain.omega().pow([j as u64]));
+            omega_lookup.insert(omega_j, j);
 
             // TODO: By virtue of the reindexed vector being typed "Option<Box<_>>", it contains
             // gaps (that can be collapsed) when # circuits < domain size. These are inherently
@@ -97,7 +92,7 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
         Ok(Mesh {
             domain,
             circuits: reordered,
-            omega_lsb_lookup,
+            omega_lookup,
         })
     }
 }
@@ -106,32 +101,33 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
 pub struct Mesh<'params, F: PrimeField, R: Rank> {
     domain: Domain<F>,
     circuits: Vec<Option<Box<dyn CircuitObject<F, R> + 'params>>>,
-    omega_lsb_lookup: HashMap<u64, usize, RandomState>,
+    omega_lookup: BTreeMap<OmegaKey, usize>,
 }
 
-impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
-    /// Computes a hash key from a field element for omega lookups.
-    ///
-    /// For field elements of multiplicative order 2^k (omega values),
-    /// this uniquely identifies each element.
-    fn field_to_lsb(f: &F) -> u64 {
+/// Represents a key for identifying a unique $\omega^j$ value where $\omega$ is
+/// a $2^k$-th root of unity.
+#[derive(Ord, PartialOrd, PartialEq, Eq)]
+struct OmegaKey(u64);
+
+impl<F: PrimeField> From<F> for OmegaKey {
+    fn from(f: F) -> Self {
+        // Multiplication by 5 ensures the least significant 64 bits of the
+        // field element can be used as a key for all elements of order 2^k.
+        // TODO: This only holds for the Pasta curves. See issue #51
         let product = f.double().double() + f;
+
         let bytes = product.to_repr();
         let byte_slice = bytes.as_ref();
 
-        u64::from_le_bytes(
+        OmegaKey(u64::from_le_bytes(
             byte_slice[..8]
                 .try_into()
                 .expect("field representation is at least 8 bytes"),
-        )
+        ))
     }
+}
 
-    /// Returns the index of the circuit for the provided omega^{i} value using constant lookup.
-    fn get_circuit_from_omega(&self, w: F) -> Option<usize> {
-        let w_lsb = Self::field_to_lsb(&w);
-        self.omega_lsb_lookup.get(&w_lsb).copied()
-    }
-
+impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
     /// Evaluate the mesh polynomial unrestricted at $W$.
     pub fn xy(&self, x: F, y: F) -> unstructured::Polynomial<F, R> {
         let mut coeffs = unstructured::Polynomial::default();
@@ -206,8 +202,8 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
                     add_poly(&**circuit, circuit_coeff, &mut result);
                 }
             }
-        } else if let Some(i) = self.get_circuit_from_omega(w) {
-            if let Some(circuit) = &self.circuits[i] {
+        } else if let Some(i) = self.omega_lookup.get(&OmegaKey::from(w)) {
+            if let Some(circuit) = &self.circuits[*i] {
                 add_poly(&**circuit, F::ONE, &mut result);
             }
         } else {
@@ -226,17 +222,12 @@ pub fn compute_circuit_omega<F: PrimeField>(id: u32) -> F {
 
 #[cfg(test)]
 mod tests {
-    use crate::mesh::compute_circuit_omega;
-    use crate::{
-        Circuit,
-        mesh::{Mesh, MeshBuilder},
-        polynomials::R,
-    };
-    use ahash::RandomState;
+    use super::{MeshBuilder, OmegaKey, compute_circuit_omega};
+    use crate::{Circuit, polynomials::R};
+    use alloc::collections::btree_map::BTreeMap;
     use arithmetic::{Domain, bitreverse};
     use ff::Field;
     use ff::PrimeField;
-    use hashbrown::HashMap;
     use ragu_core::{
         Result,
         drivers::{Driver, DriverValue},
@@ -335,20 +326,17 @@ mod tests {
         let domain = Domain::<Fp>::new(log2_circuits);
         let domain_size = 1 << log2_circuits;
 
-        let mut omega_lsb_lookup =
-            HashMap::with_capacity_and_hasher(domain_size, RandomState::new());
+        let mut omega_lookup = BTreeMap::new();
         let mut omega_power = Fp::ONE;
 
         for i in 0..domain_size {
-            let hash = Mesh::<Fp, R<8>>::field_to_lsb(&omega_power);
-            omega_lsb_lookup.insert(hash, i);
+            omega_lookup.insert(OmegaKey::from(omega_power), i);
             omega_power *= domain.omega();
         }
 
         omega_power = Fp::ONE;
         for i in 0..domain_size {
-            let hash = Mesh::<Fp, R<10>>::field_to_lsb(&omega_power);
-            let looked_up_index = omega_lsb_lookup.get(&hash).copied();
+            let looked_up_index = omega_lookup.get(&OmegaKey::from(omega_power)).copied();
 
             assert_eq!(
                 looked_up_index,
