@@ -37,12 +37,22 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
     where
         C: Circuit<F> + 'params,
     {
+        self.circuits.push(circuit.into_object()?);
+
+        Ok(self)
+    }
+
+    /// Registers a new circuit using a bare circuit object.
+    pub fn register_circuit_object<C>(
+        mut self,
+        circuit: Box<dyn CircuitObject<F, R> + 'params>,
+    ) -> Result<Self> {
         let id = self.circuits.len();
-        if id >= (R::num_coeffs()) {
+        if id >= R::num_coeffs() {
             return Err(Error::CircuitBoundExceeded(id));
         }
 
-        self.circuits.push(circuit.into_object()?);
+        self.circuits.push(circuit);
 
         Ok(self)
     }
