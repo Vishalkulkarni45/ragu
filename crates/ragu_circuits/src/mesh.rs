@@ -63,14 +63,11 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
         let log2_circuits = self.circuits.len().next_power_of_two().trailing_zeros();
 
         let domain = Domain::<F>::new(log2_circuits);
-        let domain_size = 1 << log2_circuits;
-        let mut reordered = Vec::with_capacity(domain_size);
-        reordered.extend((0..domain_size).map(|_| None));
 
-        // Build omega^j -> j lookup table.
+        // Build omega^j -> i lookup table.
         let mut omega_lookup = BTreeMap::new();
 
-        for (i, circuit) in self.circuits.into_iter().enumerate() {
+        for i in 0..self.circuits.len() {
             // Rather than assigning the `i`th circuit to `omega^i` in the final
             // domain, we will assign it to `omega^j` where `j` is the
             // `log2_circuits` bit-reversal of `i`. This has the property that
@@ -81,19 +78,12 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
             // become exhausted.
             let j = bitreverse(i as u32, log2_circuits) as usize;
             let omega_j = OmegaKey::from(domain.omega().pow([j as u64]));
-            omega_lookup.insert(omega_j, j);
-
-            // TODO: By virtue of the reindexed vector being typed "Option<Box<_>>", it contains
-            // gaps (that can be collapsed) when # circuits < domain size. These are inherently
-            // sparse indices right now.
-
-            // Shuffle the circuit by moving each circuit to it's bit-reversed position.
-            reordered[j] = Some(circuit);
+            omega_lookup.insert(omega_j, i);
         }
 
         Ok(Mesh {
             domain,
-            circuits: reordered,
+            circuits: self.circuits,
             omega_lookup,
         })
     }
@@ -102,7 +92,10 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
 /// A finalized mesh ready for polynomial evaluation.
 pub struct Mesh<'params, F: PrimeField, R: Rank> {
     domain: Domain<F>,
-    circuits: Vec<Option<Box<dyn CircuitObject<F, R> + 'params>>>,
+    circuits: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
+
+    // Maps from the OmegaKey (which represents some `omega^j`) to the index `i`
+    // of the circuits vector.
     omega_lookup: BTreeMap<OmegaKey, usize>,
 }
 
@@ -133,10 +126,9 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
     /// Evaluate the mesh polynomial unrestricted at $W$.
     pub fn xy(&self, x: F, y: F) -> unstructured::Polynomial<F, R> {
         let mut coeffs = unstructured::Polynomial::default();
-        for (circuit_opt, lc) in self.circuits.iter().zip(coeffs.iter_mut()) {
-            if let Some(circuit) = circuit_opt {
-                *lc = circuit.sxy(x, y);
-            }
+        for (i, circuit) in self.circuits.iter().enumerate() {
+            let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
+            coeffs[j] = circuit.sxy(x, y);
         }
         // Convert from the Lagrange basis.
         let domain = &self.domain;
@@ -199,13 +191,14 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
             // The provided `w` was not in the domain, and `ell` are the
             // coefficients we need to use to separate each (partial) circuit
             // evaluation.
-            for (circuit_opt, circuit_coeff) in self.circuits.iter().zip(ell) {
-                if let Some(circuit) = circuit_opt {
-                    add_poly(&**circuit, circuit_coeff, &mut result);
+            for (j, coeff) in ell.iter().enumerate() {
+                let i = bitreverse(j as u32, self.domain.log2_n()) as usize;
+                if let Some(circuit) = self.circuits.get(i) {
+                    add_poly(&**circuit, *coeff, &mut result);
                 }
             }
         } else if let Some(i) = self.omega_lookup.get(&OmegaKey::from(w)) {
-            if let Some(circuit) = &self.circuits[*i] {
+            if let Some(circuit) = self.circuits.get(*i) {
                 add_poly(&**circuit, F::ONE, &mut result);
             }
         } else {
