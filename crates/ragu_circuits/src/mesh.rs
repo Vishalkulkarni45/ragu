@@ -33,17 +33,15 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
     }
 
     /// Registers a new circuit.
-    pub fn register_circuit<C>(mut self, circuit: C) -> Result<Self>
+    pub fn register_circuit<C>(self, circuit: C) -> Result<Self>
     where
         C: Circuit<F> + 'params,
     {
-        self.circuits.push(circuit.into_object()?);
-
-        Ok(self)
+        self.register_circuit_object(circuit.into_object()?)
     }
 
     /// Registers a new circuit using a bare circuit object.
-    pub fn register_circuit_object<C>(
+    pub fn register_circuit_object(
         mut self,
         circuit: Box<dyn CircuitObject<F, R> + 'params>,
     ) -> Result<Self> {
