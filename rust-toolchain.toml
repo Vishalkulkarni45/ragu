@@ -5,6 +5,6 @@ components = ["clippy", "rustfmt"]
 # Bumping MSRV
 # * update `toolchain.channel` key in `rust-toolchain.toml` (this file)
 # * update toolchain in `.github/actions/rust-setup/action.yml`
-# * update `book/src/usage/index.md`
+# * update `book/src/guide/index.md`
 # * in each crate (both inside of `crates` and the root crate `ragu` itself):
 #     * update `package.rust-version` key in `Cargo.toml`
