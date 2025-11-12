@@ -292,6 +292,7 @@ impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Collector<'table, 'sy, F
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
     y: F,
+    k: F,
     num_linear_constraints: usize,
 ) -> Result<structured::Polynomial<F, R>> {
     let mut sy = structured::Polynomial::<F, R>::new();
@@ -323,7 +324,10 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
             let (a_0, _b_0, c_0) = collector.mul(|| unreachable!())?;
 
             // Placeholder linear constraint: a_0 - c_0 * K = 0.
-            collector.enforce_zero(|lc| lc.add(&a_0).sub(&c_0))?;
+            collector.enforce_zero(|lc| {
+                let lc = lc.add(&a_0);
+                lc.add_term(&c_0, Coeff::Arbitrary(-k))
+            })?;
             let one = c_0;
 
             let mut outputs = vec![];

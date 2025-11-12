@@ -122,6 +122,7 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Collector<F, R> {
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
     x: F,
+    k: F,
 ) -> Result<unstructured::Polynomial<F, R>> {
     if x == F::ZERO {
         // The polynomial is zero if x is zero.
@@ -154,7 +155,10 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     let (a_0, _b_0, c_0) = collector.mul(|| unreachable!())?;
 
     // Placeholder linear constraint: a_0 - c_0 * K = 0.
-    collector.enforce_zero(|lc| lc.add(&a_0).sub(&c_0))?;
+    collector.enforce_zero(|lc| {
+        let lc = lc.add(&a_0);
+        lc.add_term(&c_0, Coeff::Arbitrary(-k))
+    })?;
     let one = c_0;
 
     let mut outputs = vec![];

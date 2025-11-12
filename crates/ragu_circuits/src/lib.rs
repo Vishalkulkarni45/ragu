@@ -107,15 +107,15 @@ pub trait CircuitExt<F: Field>: Circuit<F> {
         }
 
         impl<F: Field, C: Circuit<F>, R: Rank> CircuitObject<F, R> for ProcessedCircuit<C> {
-            fn sxy(&self, x: F, y: F) -> F {
-                s::sxy::eval::<_, _, R>(&self.circuit, x, y)
+            fn sxy(&self, x: F, y: F, k: F) -> F {
+                s::sxy::eval::<_, _, R>(&self.circuit, x, y, k)
                     .expect("should succeed if metrics succeeded")
             }
-            fn sx(&self, x: F) -> unstructured::Polynomial<F, R> {
-                s::sx::eval(&self.circuit, x).expect("should succeed if metrics succeeded")
+            fn sx(&self, x: F, k: F) -> unstructured::Polynomial<F, R> {
+                s::sx::eval(&self.circuit, x, k).expect("should succeed if metrics succeeded")
             }
-            fn sy(&self, y: F) -> structured::Polynomial<F, R> {
-                s::sy::eval(&self.circuit, y, self.metrics.num_linear_constraints)
+            fn sy(&self, y: F, k: F) -> structured::Polynomial<F, R> {
+                s::sy::eval(&self.circuit, y, k, self.metrics.num_linear_constraints)
                     .expect("should succeed if metrics succeeded")
             }
         }
@@ -148,11 +148,11 @@ impl<F: Field, C: Circuit<F>> CircuitExt<F> for C {}
 /// See [`CircuitExt::into_object`].
 pub trait CircuitObject<F: Field, R: Rank>: Send + Sync {
     /// Evaluates the polynomial $s(x, y)$ for some $x, y \in \mathbb{F}$.
-    fn sxy(&self, x: F, y: F) -> F;
+    fn sxy(&self, x: F, y: F, k: F) -> F;
 
     /// Computes the polynomial restriction $s(x, Y)$ for some $x \in \mathbb{F}$.
-    fn sx(&self, x: F) -> unstructured::Polynomial<F, R>;
+    fn sx(&self, x: F, k: F) -> unstructured::Polynomial<F, R>;
 
     /// Computes the polynomial restriction $s(X, y)$ for some $y \in \mathbb{F}$.
-    fn sy(&self, y: F) -> structured::Polynomial<F, R>;
+    fn sy(&self, y: F, k: F) -> structured::Polynomial<F, R>;
 }

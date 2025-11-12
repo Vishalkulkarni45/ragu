@@ -113,10 +113,6 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
 
         provisional_mesh.mesh_key = Some(mesh_key);
 
-        // Substitute the computed K into the linear constraint for each circuit polynomial.
-        // TODO: How do we do this since the circuits are already compiled, we can't modify them directly?
-        // Is the correction be applied during mesh-evaluation time in the wxy(), wy(), wx(), and xy() methods?
-
         Ok(provisional_mesh)
     }
 
@@ -126,8 +122,8 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
         // Neccesary converting between generic F and concrete Fp for Poseidon hashing.
         F: PrimeField<Repr = [u8; 32]>,
     {
-        // Nothing-up-my-sleeve challenges (small primes).
-        // TODO: I made these placeholders, but what should these transparent constants actually be?
+        // Placeholder "nothing-up-my-sleeve challenges" (small primes).
+        // TODO: Add domain-seperated iterative hashing.
         let w = F::from(2);
         let x = F::from(3);
         let y = F::from(5);
@@ -138,7 +134,7 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
 
         // Hash with Poseidon using Simulator driver.
         let params = Pasta::baked();
-        let hash_result = RefCell::new(Fp::ZERO);
+        let digest = RefCell::new(Fp::ZERO);
 
         let _ = Simulator::simulate(mesh_eval_fp, |dr, value| {
             let mut sponge = Sponge::<'_, _, <Pasta as Cycle>::CircuitPoseidon>::new(
@@ -148,11 +144,11 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
             let elem = Element::alloc(dr, value)?;
             sponge.absorb(dr, &elem)?;
             let hash_elem = sponge.squeeze(dr)?;
-            *hash_result.borrow_mut() = *hash_elem.wire();
+            *digest.borrow_mut() = *hash_elem.wire();
             Ok(())
         });
 
-        F::from_repr(hash_result.borrow().to_repr()).unwrap_or(F::ZERO)
+        F::from_repr(digest.borrow().to_repr()).unwrap_or(F::ZERO)
     }
 }
 
@@ -197,10 +193,11 @@ impl<F: PrimeField> From<F> for OmegaKey {
 impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
     /// Evaluate the mesh polynomial unrestricted at $W$.
     pub fn xy(&self, x: F, y: F) -> unstructured::Polynomial<F, R> {
+        let k = self.mesh_key.unwrap_or(F::ONE);
         let mut coeffs = unstructured::Polynomial::default();
         for (i, circuit) in self.circuits.iter().enumerate() {
             let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
-            coeffs[j] = circuit.sxy(x, y);
+            coeffs[j] = circuit.sxy(x, y, k);
         }
         // Convert from the Lagrange basis.
         let domain = &self.domain;
@@ -211,11 +208,12 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
 
     /// Evaluate the mesh polynomial unrestricted at $X$.
     pub fn wy(&self, w: F, y: F) -> structured::Polynomial<F, R> {
+        let k = self.mesh_key.unwrap_or(F::ONE);
         self.w(
             w,
             structured::Polynomial::default,
             |circuit, circuit_coeff, poly| {
-                let mut tmp = circuit.sy(y);
+                let mut tmp = circuit.sy(y, k);
                 tmp.scale(circuit_coeff);
                 poly.add_assign(&tmp);
             },
@@ -224,11 +222,12 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
 
     /// Evaluate the mesh polynomial unrestricted at $Y$.
     pub fn wx(&self, w: F, x: F) -> unstructured::Polynomial<F, R> {
+        let k = self.mesh_key.unwrap_or(F::ONE);
         self.w(
             w,
             unstructured::Polynomial::default,
             |circuit, circuit_coeff, poly| {
-                let mut tmp = circuit.sx(x);
+                let mut tmp = circuit.sx(x, k);
                 tmp.scale(circuit_coeff);
                 poly.add_assign(&tmp);
             },
@@ -237,11 +236,12 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
 
     /// Evaluate the mesh polynomial at the provided point.
     pub fn wxy(&self, w: F, x: F, y: F) -> F {
+        let k = self.mesh_key.unwrap_or(F::ONE);
         self.w(
             w,
             || F::ZERO,
             |circuit, circuit_coeff, poly| {
-                *poly += circuit.sxy(x, y) * circuit_coeff;
+                *poly += circuit.sxy(x, y, k) * circuit_coeff;
             },
         )
     }

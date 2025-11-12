@@ -56,7 +56,7 @@ impl<R: Rank> StageObject<R> {
 }
 
 impl<F: Field, R: Rank> CircuitObject<F, R> for StageObject<R> {
-    fn sxy(&self, x: F, y: F) -> F {
+    fn sxy(&self, x: F, y: F, k: F) -> F {
         // Bound is enforced in `StageObject::new`.
         assert!(self.skip_multiplications + self.num_multiplications < R::n());
         let reserved: usize = R::n() - self.skip_multiplications - self.num_multiplications - 1;
@@ -96,7 +96,7 @@ impl<F: Field, R: Rank> CircuitObject<F, R> for StageObject<R> {
         y.pow_vartime([(3 * reserved) as u64]) * c1 + c2
     }
 
-    fn sx(&self, x: F) -> unstructured::Polynomial<F, R> {
+    fn sx(&self, x: F, k: F) -> unstructured::Polynomial<F, R> {
         // Bound is enforced in `StageObject::new`.
         assert!(self.skip_multiplications + self.num_multiplications < R::n());
         let reserved: usize = R::n() - self.skip_multiplications - self.num_multiplications - 1;
@@ -148,7 +148,7 @@ impl<F: Field, R: Rank> CircuitObject<F, R> for StageObject<R> {
         unstructured::Polynomial::from_coeffs(coeffs)
     }
 
-    fn sy(&self, y: F) -> structured::Polynomial<F, R> {
+    fn sy(&self, y: F, k: F) -> structured::Polynomial<F, R> {
         // Bound is enforced in `StageObject::new`.
         assert!(self.skip_multiplications + self.num_multiplications < R::n());
         let reserved: usize = R::n() - self.skip_multiplications - self.num_multiplications - 1;
@@ -335,9 +335,10 @@ mod tests {
 
         let z = Fp::random(thread_rng());
         let y = Fp::random(thread_rng());
+        let k = Fp::one();
 
         {
-            let rhs = circ1.sy(y);
+            let rhs = circ1.sy(y, k);
             assert_eq!(rx1_a.revdot(&rhs), Fp::ZERO);
             assert_eq!(rx1_b.revdot(&rhs), Fp::ZERO);
 
@@ -351,10 +352,10 @@ mod tests {
             assert_eq!(combined.revdot(&rhs), Fp::ZERO);
         }
 
-        assert_eq!(rx1_a.revdot(&circ1.sy(y)), Fp::ZERO);
-        assert_eq!(rx2.revdot(&circ2.sy(y)), Fp::ZERO);
-        assert!(rx1_a.revdot(&circ2.sy(y)) != Fp::ZERO);
-        assert!(rx2.revdot(&circ1.sy(y)) != Fp::ZERO);
+        assert_eq!(rx1_a.revdot(&circ1.sy(y, k)), Fp::ZERO);
+        assert_eq!(rx2.revdot(&circ2.sy(y, k)), Fp::ZERO);
+        assert!(rx1_a.revdot(&circ2.sy(y, k)) != Fp::ZERO);
+        assert!(rx2.revdot(&circ1.sy(y, k)) != Fp::ZERO);
 
         Ok(())
     }
@@ -365,10 +366,11 @@ mod tests {
 
         let x = Fp::random(thread_rng());
         let y = Fp::random(thread_rng());
+        let k = Fp::one();
 
-        let sxy = stage_object.sxy(x, y);
-        let sx = stage_object.sx(x);
-        let sy = stage_object.sy(y);
+        let sxy = stage_object.sxy(x, y, k);
+        let sx = stage_object.sx(x, k);
+        let sy = stage_object.sy(y, k);
 
         assert_eq!(sxy, sx.eval(y));
         assert_eq!(sxy, sy.eval(x));
@@ -382,6 +384,8 @@ mod tests {
             let stage_object = StageObject::<R>::new(skip, num).unwrap();
             let comparison_object = stage_object.clone().into_object::<R>().unwrap();
 
+            let k = Fp::one();
+
             let check = |x: Fp, y: Fp| {
                 let xn_minus_1 = x.pow_vartime([(4 * R::n() - 1) as u64]);
 
@@ -390,12 +394,12 @@ mod tests {
 
                 // This adjusts for the single "ONE" constraint which is always skipped
                 // in staging witnesses.
-                let sxy = comparison_object.sxy(x, y) - xn_minus_1;
-                let mut sx = comparison_object.sx(x);
+                let sxy = comparison_object.sxy(x, y, k) - xn_minus_1;
+                let mut sx = comparison_object.sx(x, k);
                 {
                     sx[0] -= xn_minus_1;
                 }
-                let mut sy = comparison_object.sy(y);
+                let mut sy = comparison_object.sy(y, k);
                 {
                     let sy = sy.backward();
                     sy.c[0] -= Fp::ONE;
@@ -403,9 +407,9 @@ mod tests {
 
                 prop_assert_eq!(sy.eval(x), sxy);
                 prop_assert_eq!(sx.eval(y), sxy);
-                prop_assert_eq!(stage_object.sxy(x, y), sxy);
-                prop_assert_eq!(stage_object.sx(x).eval(y), sxy);
-                prop_assert_eq!(stage_object.sy(y).eval(x), sxy);
+                prop_assert_eq!(stage_object.sxy(x, y, k), sxy);
+                prop_assert_eq!(stage_object.sx(x, k).eval(y), sxy);
+                prop_assert_eq!(stage_object.sy(y, k).eval(x), sxy);
 
                 Ok(())
             };
