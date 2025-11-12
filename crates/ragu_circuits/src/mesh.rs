@@ -198,7 +198,7 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
         add_poly: impl Fn(&dyn CircuitObject<F, R>, F, &mut T),
     ) -> T {
         // Compute the Lagrange coefficients for the provided `w`.
-        let ell = self.domain.ell(w, self.circuits.len());
+        let ell = self.domain.ell(w, self.domain.n());
 
         let mut result = init();
 
@@ -424,6 +424,34 @@ mod tests {
                     id, num_circuits
                 );
             }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_non_power_of_two_mesh_sizes() -> Result<()> {
+        type TestRank = crate::polynomials::R<8>;
+        for num_circuits in 0..21 {
+            let mut builder = MeshBuilder::<Fp, TestRank>::new();
+
+            for i in 0..num_circuits {
+                builder = builder.register_circuit(SquareCircuit { times: i })?;
+            }
+
+            let mesh = builder.finalize()?;
+
+            // Verify domain size is next power of 2
+            let expected_domain_size = num_circuits.next_power_of_two();
+            assert_eq!(mesh.domain.n(), expected_domain_size);
+
+            let w = Fp::random(thread_rng());
+            let x = Fp::random(thread_rng());
+            let y = Fp::random(thread_rng());
+
+            let wxy = mesh.wxy(w, x, y);
+            let xy = mesh.xy(x, y);
+            assert_eq!(wxy, xy.eval(w), "Failed for num_circuits={}", num_circuits);
         }
 
         Ok(())
