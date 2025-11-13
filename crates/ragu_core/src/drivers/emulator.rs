@@ -5,7 +5,7 @@ use crate::{
     Result,
     drivers::{Coeff, Driver, DriverTypes, FromDriver},
     gadgets::GadgetKind,
-    maybe::MaybeKind,
+    maybe::{Always, MaybeKind},
     routines::{Prediction, Routine},
 };
 
@@ -17,15 +17,17 @@ pub struct Emulator<M: MaybeKind, F: Field> {
     _marker: PhantomData<(M, F)>,
 }
 
-impl<M: MaybeKind, F: Field> Default for Emulator<M, F> {
-    fn default() -> Self {
-        Emulator::new()
+impl<F: Field> Emulator<Always<()>, F> {
+    /// Create an emulator that is used to simply execute, rather than
+    /// collecting wire assignments.
+    pub fn execute() -> Self {
+        Self::wireless()
     }
 }
 
 impl<M: MaybeKind, F: Field> Emulator<M, F> {
     /// Creates a new `Emulator` driver.
-    pub fn new() -> Self {
+    pub fn wireless() -> Self {
         Emulator {
             _marker: PhantomData,
         }

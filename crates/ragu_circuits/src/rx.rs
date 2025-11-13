@@ -72,7 +72,7 @@ impl<'a, F: Field, R: Rank> Driver<'a> for Collector<'a, F, R> {
         // Temporarily store currently `available_b` to reset the allocation
         // logic within the routine.
         let tmp = self.available_b.take();
-        let mut dummy = Emulator::<Self::MaybeKind, F>::default();
+        let mut dummy = Emulator::wireless();
         let dummy_input = Ro::Input::map_gadget(&input, &mut dummy)?;
         let result = match routine.predict(&mut dummy, &dummy_input)? {
             Prediction::Known(_, aux) | Prediction::Unknown(aux) => {
