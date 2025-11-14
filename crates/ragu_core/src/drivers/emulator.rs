@@ -141,14 +141,6 @@ impl<M: MaybeKind, F: Field> Mode for Wireless<M, F> {
 /// another driver.
 pub struct Emulator<M: Mode>(PhantomData<M>);
 
-impl<F: Field> Emulator<Wireless<Always<()>, F>> {
-    /// Creates a new `Emulator` driver in wireless mode, specifically for
-    /// executing with a known witness.
-    pub fn execute() -> Self {
-        Self::wireless()
-    }
-}
-
 impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
     /// Creates a new `Emulator` driver in wireless mode, parameterized on the
     /// existence of a witness.
@@ -157,11 +149,11 @@ impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
     }
 }
 
-impl<M: MaybeKind, F: Field> Emulator<Wired<M, F>> {
-    /// Creates a new `Emulator` while tracking wire assignments, parameterized
-    /// on the existence of a witness.
-    pub fn simulator() -> Self {
-        Emulator(PhantomData)
+impl<F: Field> Emulator<Wireless<Always<()>, F>> {
+    /// Creates a new `Emulator` driver in wireless mode, specifically for
+    /// executing with a known witness.
+    pub fn execute() -> Self {
+        Self::wireless()
     }
 }
 
