@@ -1,4 +1,31 @@
-//! TODO(ebfull): Emulator documentation.
+//! Emulation for executing circuit synthesis code without unnecessary
+//! constraint enforcement or wire tracking.
+//!
+//! ## Usage
+//!
+//! This module provides the [`Emulator`] driver, which can be used to execute
+//! circuit synthesis code _directly_ rather than for assembling a witness or
+//! polynomial reductions.
+//!
+//! There are three primary ways to use an [`Emulator`]:
+//!
+//! * [`Emulator::wireless()`] creates an [`Emulator`] that does not track wire
+//!   assignments, but may or may not have a witness depending on the
+//!   parameterized [`MaybeKind`]. This is used whenever we know wire
+//!   assignments are not needed, but circuit synthesis code may need to be
+//!   executed over a witness depending on the context, such as _within_ the
+//!   execution of a generic driver.
+//! * `Emulator::execute()` is a special case of [`Emulator::wireless()`] that
+//!   _always_ has a witness. This is used for executing computations written as
+//!   circuit synthesis code; the interstitial wire assignments don't matter, so
+//!   we don't need to compute or track them.
+//! * `Emulator::extractor()` is an emulator that always has both a wire
+//!   assignment and a witness. This is used for extracting the wire values, for
+//!   example using [`Emulator::wires()`].
+//!
+//! More generally, the [`Emulator`] runs in two modes: [`Wired`] and
+//! [`Wireless`]. The three ways of using [`Emulator`] discussed above are just
+//! shorthand for specific parameterizations of these modes.
 
 use core::marker::PhantomData;
 use ff::Field;
@@ -144,6 +171,8 @@ pub struct Emulator<M: Mode>(PhantomData<M>);
 impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
     /// Creates a new `Emulator` driver in wireless mode, parameterized on the
     /// existence of a witness.
+    ///
+    /// This driver does not enforce any constraints or track wire assignments.
     pub fn wireless() -> Self {
         Emulator(PhantomData)
     }
@@ -152,6 +181,8 @@ impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
 impl<F: Field> Emulator<Wireless<Always<()>, F>> {
     /// Creates a new `Emulator` driver in wireless mode, specifically for
     /// executing with a known witness.
+    ///
+    /// This driver does not enforce any constraints or track wire assignments.
     pub fn execute() -> Self {
         Self::wireless()
     }
@@ -160,6 +191,11 @@ impl<F: Field> Emulator<Wireless<Always<()>, F>> {
 impl<F: Field> Emulator<Wired<Always<()>, F>> {
     /// Creates a new `Emulator` while tracking wire assignments, specifically
     /// for extracting the wire values afterward.
+    ///
+    /// This driver tracks all wire assignments and is only used in contexts
+    /// when a witness always exists. The [`Emulator::wires`] method can be used
+    /// to extract the raw wire values from a gadget constructed using this
+    /// driver.
     pub fn extractor() -> Self {
         Emulator(PhantomData)
     }
