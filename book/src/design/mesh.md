@@ -1,6 +1,6 @@
 # Mesh Polynomial
 
-Given a collection of $C$ circuits, each represented by a bivariate polynomial $s_i(X, Y)$, the mesh is a higher-level trivariate polynomial $m(W, X, Y)$ that interpolates these circuits, such that   
+As [previously discussed](../design/circuits/circuit_polynomials.md), individual circuits can be represented entirely by a polynomial $s(X, Y)$ that represents all of its linear constraints. In order to make many different circuits available within the protocol simultaneously, it will be useful to define a mesh polynomial $m(W, X, Y)$ in that third formal indeterminate $W$ that interpolates such that
 
 $$
 m(\omega^i, X, Y) = s_i(X, Y)
@@ -14,7 +14,7 @@ The mesh is a collection of circuits over a particular field, and the mesh has a
 
 ### Consistency Checks
 
-A fundamental property of multivariate polynomials is that two degree-bounded polynomials are equal if and only if they agree at all points in their domain. Our protocol exploits this to verify polynomial equality probabilistically through Fiat-Shamir challenges. 
+A fundamental property of multivariate polynomials is that two degree-bounded polynomials are equal if and only if they agree at all points in their domain. Our protocol exploits this to verify polynomial equality probabilistically through random challenge points. 
 
 Given two representations of a polynomial $p(W, X, Y)$, we verify consistency by evaluating at random challenge points. By the Schwartz-Zippel lemma, if two distinct polynomials of degree $d$ are evaluated at a random point, they agree with probability at most $d/|\mathbb{F}|$.
 
@@ -27,13 +27,13 @@ The protocol uses *partial evaluations* to reduce the dimensionality of the poly
 | $p(w, x, Y)$ | $\mathbb{F}[Y]$ | Univariate in $Y$ for fixed $w$ and $x$ |
 | $p(w, x, y)$ | $\mathbb{F}$ | Point evaluation |
 
-This mirrors techniques used in the sumcheck protocol: we recursively bind variables to different challenge values, obtaining polynomials in fewer variables. The verifier then samples a fresh Fiat-Shamir challenge and checks that different partial evaluations are consistent. 
+This mirrors the technique used in the [sumcheck](https://people.cs.georgetown.edu/jthaler/sumcheck.pdf) protocol: within a protocol, we alternate between (univariate) restrictions of a polynomial using random challenges to prove equality, probabilistically reducing a claim about many different evaluations of a polynomial to a single polynomial evaluation.
 
 ### Applicability to the Mesh
 
 If independent parties claim to hold evaluations of the same mesh polynomial $m(W, X, Y)$ at different points $(w_i, x_i, y_i)$ and $(w_z, x_z, y_z)$, we can verify they share the same underlying polynomial by:
 
-1. Sampling random Fiat-Shamir challenges $w^*, x^*, y^*$,
+1. Sampling random challenges $w^*, x^*, y^*$,
 2. Evaluating the claimed polynomials at restrictions like $m(w^*, X, Y)$, $m(W, x^*, Y)$, etc,
 3. Checking that the restricted polynomials agree at further challenge points
 
@@ -51,7 +51,7 @@ $$
 m(\omega^i, X, y) \;\equiv\; s_i(X, y)
 $$
 
-More generally, the protocol needs to evaluate the mesh at *arbitrary* Fiat-Shamir challenge points $w \in \mathbb{F}$ (not necessarily a root of unity $\omega$). We use Lagrange coefficients for polynomial interpolation. Suppose the mesh is defined on the points ${\omega^0, \omega^1, ..., \omega^{n-1}}$ with 
+More generally, the protocol needs to evaluate the mesh at *arbitrary* challenge points $w \in \mathbb{F}$ (not necessarily a root of unity $\omega$). We use Lagrange coefficients for polynomial interpolation. Suppose the mesh is defined on the points ${\omega^0, \omega^1, ..., \omega^{n-1}}$ with 
 
 $$
 f_i(X,y) \;=\; m(\omega^i, X, y) \;=\; s_i(X,y)
