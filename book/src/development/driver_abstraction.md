@@ -3,9 +3,9 @@
 The **driver** abstraction provides a unified interface that enables the same circuit code to work across different execution contexts. A driver is a compile-time specialized context that determines how circuits are *synthesized* at runtime. 
 
 Circuits are written generically over the `Driver` trait. They invoke generic driver operations like `driver.mul()` and `driver.enforce_zero()` that each 
-driver interprets differently. Each synthesis invocation is a stateless pass over the circuit definition with a different backend "interpreter" that computes and extracts different information. For example, the **SXY** driver builds circuit polynomials *S(X, Y)* during mesh construction (canonically referred to as circuit synthesis), the **RX** driver generates witness polynomials *R(X)*.  
+driver interprets differently. Each synthesis invocation is a stateless pass over the circuit definition with a different backend "interpreter" that computes and extracts different information. For example, the **SXY** driver builds circuit polynomials *S(X, Y)* during mesh construction (canonically referred to as circuit synthesis), and the **RX** driver generates witness polynomials *R(X)*.  
 
-The driver exposes fundamental operations (for instance `driver.mul()` for encoding multiplication gates and `driver.enforce_zero()` for linear constraints) while hiding implementation details. Since R1CS supports *virtual wires* via `driver.add()` (unlimited fan-in addition gates are free), the driver can handle both "in-circuit" operations that contribute to the constraint counts and "out-of-circuit" computations like witness generation or virtual wires. 
+The driver exposes operations (for instance `driver.mul()` for encoding multiplication gates and `driver.enforce_zero()` for enforcing linear constraints) while hiding implementation details. Since R1CS supports *virtual wires* (unlimited fan-in addition gates are free via `driver.add()`), the driver can handle both "in-circuit" operations that contribute to the constraint counts and "out-of-circuit" computations like witness generation or virtual wires. 
 
 ## Execution Contexts
 
@@ -17,13 +17,13 @@ There are different kinds of execution we're particularly interested in distingu
 
     **SXY Driver**: Builds the circuit structure without computing witness values. Sets `MaybeKind = Empty` (witness closures passed to `driver.alloc()` and `driver.mul()` are never called, compiler optimizes them away) and `Wire = Wire<F>` (tracks wire assignments as powers of X and constraints on those wires as powers of Y). Together these construct the polynomial *S(X,Y)* encoding.
 
-    **RX Driver**: Generates witness values without tracking circuit structure. Sets `MaybeKind = Always<T>` (witness closures are always called to compute field element values), and `Wire = ()` (no wire tracking needed). Each operation invokes its witness closure and stores the resulting field elements in arrays, constructing the witness polynomial *r(X)*.
+    **RX Driver**: Generates witness values without tracking circuit structure. Sets `MaybeKind = Always<T>` (witness closures are always called to compute field element values), and `Wire = ()` (no wire tracking needed). Each operation invokes its witness closure and stores the resulting field elements in arrays, constructing the witness polynomial *R(X)*.
 
     The type-level parameterization affords that witness computation is only executed when the driver's `MaybeKind` requires it.
 
-3. Different synthesis contexts: Beyond SXY and RX drivers, the **Emulator*** driver executes circuit code directly without enforcing constraints, and the **Simulator** driver fully simulates synthesis and validates constraints for testing purposes. 
+3. **Different synthesis contexts**: Beyond SXY and RX drivers, the **Emulator*** driver executes circuit code directly without enforcing constraints, and the **Simulator** driver fully simulates synthesis and validates constraints for testing purposes. 
 
-    The *Emulator* driver is particularly flexible because it's parameterized on a *mode* that determines whether it tracks wire assignments:
+    The **Emulator** driver is particularly flexible because it's parameterized on a *mode* that determines whether it tracks wire assignments:
 
     - `Emulator::wireless()` - No wire tracking, maybe witness available
     - `Emulator::execute()` - Always has witness, no wire extraction
@@ -31,11 +31,11 @@ There are different kinds of execution we're particularly interested in distingu
 
 ## `Maybe` Monad
 
-The `Maybe<T>` monad separates witness availability from constraint synthesis, allowing the same code to work whether witness values are present or not.
+The `Maybe<T>` monad separates witness existence from constraint synthesis, allowing the same code to work whether witness values are present or not.
 
 Traditionally, most zkSNARK toolkits bundle witness generation and constraint synthesis. This means every time you synthesize constraints, witness computation code executes even when witness values aren't needed. Ragu maintains separation of concerns through the `Maybe<T>` abstraction. In some frameworks, circuit synthesis alone accounts for 25-30% of the proof generation time (specifically constraint synthesis and inlining linear combinations; the R1CS to QAP reduction is an additional smaller cost). 
 
-Ragu supports non-uniform circuits without a traditional preprocessing step, so circuit synthesis is frequently invoked and becomes a performance-critical hot path. We need to optimize polynomial reduction, but without storing gigantic polynomials with all coefficients and indeterminates in memory. Instead, we use a structured representation that can be efficiently computed and memoized.
+Ragu supports non-uniform circuits without a traditional pre-processing step, so circuit synthesis is frequently invoked and becomes a performance-critical hot path. We need to optimize polynomial reductions, but without storing gigantic polynomials with all coefficients and indeterminates in memory. Instead, we use a [structured](../design/structured.md) representation that can be efficiently computed and memoized.
 
 ## Routines
 
