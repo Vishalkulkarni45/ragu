@@ -296,7 +296,7 @@ pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
         let values = {
             let mut dr = Emulator::extractor();
             let out = Self::witness(&mut dr, Always::maybe_just(|| witness))?;
-            dr.wires(&out)?
+            dr.always_wires(&out)?
         };
 
         if values.len() > Self::values() {

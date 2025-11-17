@@ -7,25 +7,28 @@
 //! circuit synthesis code _directly_ rather than for assembling a witness or
 //! polynomial reductions.
 //!
-//! There are three primary ways to use an [`Emulator`]:
+//! The [`Emulator`] can be instantiated in [`Wired`] or [`Wireless`] mode,
+//! through the use of the respective constructors [`Emulator::wired()`] or
+//! [`Emulator::wireless()`]:
+//! * In [`Wired`] mode, circuit synthesis is performed while tracking wire
+//!   assignments; wire assignments have values depending on if there is a
+//!   witness present, as determined by the parameterized [`MaybeKind`].
+//!   [`Emulator::extractor()`] is a shorthand for creating a [`Wired`] emulator
+//!   with a known witness.
+//! * [`Wireless`] mode is equivalent, except that it doesn't track wire values
+//!   at all. [`Emulator::execute()`] is shorthand for creating a [`Wireless`]
+//!   emulator with a known witness.
 //!
-//! * [`Emulator::wireless()`] creates an [`Emulator`] that does not track wire
-//!   assignments, but may or may not have a witness depending on the
-//!   parameterized [`MaybeKind`]. This is used whenever we know wire
-//!   assignments are not needed, but circuit synthesis code may need to be
-//!   executed over a witness depending on the context, such as _within_ the
-//!   execution of a generic driver.
-//! * [`Emulator::execute()`] is a special case of [`Emulator::wireless()`] that
-//!   _always_ has a witness. This is used for executing computations written as
-//!   circuit synthesis code; the interstitial wire assignments don't matter, so
-//!   we don't need to compute or track them.
-//! * [`Emulator::extractor()`] is an emulator that always has both a wire
-//!   assignment and a witness. This is used for extracting the wire values, for
-//!   example using [`Emulator::wires()`].
+//! Emulators never enforce multiplication or linear constraints, and will also
+//! use [Routine prediction](Routine::predict) to short-circuit execution of
+//! routines.
 //!
-//! More generally, the [`Emulator`] runs in two modes: [`Wired`] and
-//! [`Wireless`]. The three ways of using [`Emulator`] discussed above are just
-//! shorthand for specific parameterizations of these modes.
+//! ### Extracting Wire Values
+//!
+//! In [`Wired`] mode, the wire assignments can be extracted from a gadget using
+//! [`Emulator::wires()`]. If a witness always exists (such as in the
+//! [`Emulator::extractor()`] case) then [`Emulator::always_wires()`] can be
+//! used to extract the raw wire assignments.
 
 use core::marker::PhantomData;
 use ff::Field;
@@ -153,8 +156,42 @@ impl<M: MaybeKind, F: Field> Mode for Wireless<M, F> {
 /// another driver.
 pub struct Emulator<M: Mode>(PhantomData<M>);
 
+impl<M: MaybeKind, F: Field> Emulator<Wired<M, F>> {
+    /// Creates a new `Emulator` driver in wired mode, parameterized on the
+    /// existence of a witness.
+    ///
+    /// This driver does not enforce any constraints.
+    pub fn wired() -> Self {
+        Emulator(PhantomData)
+    }
+
+    /// Extract the raw wire values from a gadget.
+    pub fn wires<'dr, G: Gadget<'dr, Self>>(&self, gadget: &G) -> Result<Vec<MaybeWired<M, F>>> {
+        /// A conversion utility for extracting wire values.
+        struct WireExtractor<M: MaybeKind, F: Field> {
+            wires: Vec<MaybeWired<M, F>>,
+        }
+
+        impl<M: MaybeKind, F: Field> FromDriver<'_, '_, Emulator<Wired<M, F>>> for WireExtractor<M, F> {
+            type NewDriver = PhantomData<F>;
+
+            fn convert_wire(
+                &mut self,
+                wire: &MaybeWired<M, F>,
+            ) -> Result<<Self::NewDriver as Driver<'_>>::Wire> {
+                self.wires.push(wire.clone());
+                Ok(())
+            }
+        }
+
+        let mut collector = WireExtractor { wires: Vec::new() };
+        <G::Kind as GadgetKind<F>>::map_gadget(gadget, &mut collector)?;
+        Ok(collector.wires)
+    }
+}
+
 impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
-    /// Creates a new `Emulator` driver in wireless mode, parameterized on the
+    /// Creates a new [`Emulator`] driver in [`Wireless`] mode, parameterized on the
     /// existence of a witness.
     ///
     /// This driver does not enforce any constraints or track wire assignments.
@@ -164,7 +201,7 @@ impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
 }
 
 impl<F: Field> Emulator<Wireless<Always<()>, F>> {
-    /// Creates a new `Emulator` driver in wireless mode, specifically for
+    /// Creates a new [`Emulator`] driver in [`Wireless`] mode, specifically for
     /// executing with a known witness.
     ///
     /// This driver does not enforce any constraints or track wire assignments.
@@ -172,7 +209,8 @@ impl<F: Field> Emulator<Wireless<Always<()>, F>> {
         Self::wireless()
     }
 
-    /// Execute the provided closure with a fresh `Emulator` driver in `Wireless` mode.
+    /// Execute the provided closure with a fresh [`Emulator`] driver in
+    /// [`Wireless`] mode.
     pub fn emulate_wireless<R, W: Send>(
         witness: W,
         f: impl FnOnce(&mut Self, Always<W>) -> Result<R>,
@@ -183,48 +221,33 @@ impl<F: Field> Emulator<Wireless<Always<()>, F>> {
 }
 
 impl<F: Field> Emulator<Wired<Always<()>, F>> {
+    /// Extract the raw wire values from a gadget.
+    ///
+    /// This is a proxy for [`Emulator::wires`] that assumes a witness always
+    /// exists.
+    pub fn always_wires<'dr, G: Gadget<'dr, Self>>(&self, gadget: &G) -> Result<Vec<F>> {
+        Ok(self.wires(gadget)?.into_iter().map(|w| w.value()).collect())
+    }
+
     /// Creates a new `Emulator` while tracking wire assignments, specifically
     /// for extracting the wire values afterward.
     ///
     /// This driver tracks all wire assignments and is only used in contexts
-    /// when a witness always exists. The [`Emulator::wires`] method can be used
-    /// to extract the raw wire values from a gadget constructed using this
+    /// when a witness always exists. The [`Emulator::wires()`] method can be
+    /// used to extract the raw wire values from a gadget constructed using this
     /// driver.
     pub fn extractor() -> Self {
         Emulator(PhantomData)
     }
 
-    /// Execute the provided closure with a fresh `Emulator` driver in `Wired` mode.
+    /// Execute the provided closure with a fresh [`Emulator`] driver in
+    /// [`Wired`] mode.
     pub fn emulate_wired<R, W: Send>(
         witness: W,
         f: impl FnOnce(&mut Self, Always<W>) -> Result<R>,
     ) -> Result<R> {
         let mut dr = Self::extractor();
         dr.with(witness, f)
-    }
-
-    /// Extract the raw wire values from a gadget.
-    pub fn wires<'dr, G: Gadget<'dr, Self>>(&self, gadget: &G) -> Result<Vec<F>> {
-        /// A conversion utility for extracting wire values.
-        struct WireExtractor<F: Field> {
-            wires: Vec<MaybeWired<Always<()>, F>>,
-        }
-
-        impl<F: Field> FromDriver<'_, '_, Emulator<Wired<Always<()>, F>>> for WireExtractor<F> {
-            type NewDriver = PhantomData<F>;
-
-            fn convert_wire(
-                &mut self,
-                wire: &MaybeWired<Always<()>, F>,
-            ) -> Result<<Self::NewDriver as Driver<'_>>::Wire> {
-                self.wires.push(wire.clone());
-                Ok(())
-            }
-        }
-
-        let mut collector = WireExtractor { wires: Vec::new() };
-        <G::Kind as GadgetKind<F>>::map_gadget(gadget, &mut collector)?;
-        Ok(collector.wires.into_iter().map(|w| w.value()).collect())
     }
 }
 
