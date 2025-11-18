@@ -87,8 +87,7 @@ pub trait Rank:
         };
         use ragu_primitives::Element;
 
-        let mut dr = Emulator::execute();
-        *dr.with((x, z), |dr, xz| {
+        *Emulator::emulate_wireless((x, z), |dr, xz| {
             let (x, z) = xz.cast();
             let x = Element::alloc(dr, x)?;
             let z = Element::alloc(dr, z)?;
