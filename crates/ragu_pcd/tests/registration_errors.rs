@@ -66,10 +66,10 @@ impl<C: arithmetic::Cycle> Step<C> for Step0 {
     type Output = HPrefixA;
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
-        _: &mut D,
+        dr: &mut D,
         _: DriverValue<D, Self::Witness<'source>>,
-        _: Encoder<'dr, 'source, D, Self::Left, HEADER_SIZE>,
-        _: Encoder<'dr, 'source, D, Self::Right, HEADER_SIZE>,
+        left: Encoder<'dr, 'source, D, Self::Left, HEADER_SIZE>,
+        right: Encoder<'dr, 'source, D, Self::Right, HEADER_SIZE>,
     ) -> Result<(
         (
             Encoded<'dr, D, Self::Left, HEADER_SIZE>,
@@ -78,7 +78,11 @@ impl<C: arithmetic::Cycle> Step<C> for Step0 {
         ),
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        unreachable!("witness not invoked in these tests")
+        let left = left.encode(dr)?;
+        let right = right.encode(dr)?;
+        let output = Encoded::from_gadget(());
+
+        Ok(((left, right, output), D::just(|| ())))
     }
 }
 
@@ -93,10 +97,10 @@ impl<C: arithmetic::Cycle> Step<C> for Step1 {
     type Output = HPrefixB;
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
-        _: &mut D,
+        dr: &mut D,
         _: DriverValue<D, Self::Witness<'source>>,
-        _: Encoder<'dr, 'source, D, Self::Left, HEADER_SIZE>,
-        _: Encoder<'dr, 'source, D, Self::Right, HEADER_SIZE>,
+        left: Encoder<'dr, 'source, D, Self::Left, HEADER_SIZE>,
+        right: Encoder<'dr, 'source, D, Self::Right, HEADER_SIZE>,
     ) -> Result<(
         (
             Encoded<'dr, D, Self::Left, HEADER_SIZE>,
@@ -105,7 +109,11 @@ impl<C: arithmetic::Cycle> Step<C> for Step1 {
         ),
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        unreachable!("witness not invoked in these tests")
+        let left = left.encode(dr)?;
+        let right = right.encode(dr)?;
+        let output = Encoded::from_gadget(());
+
+        Ok(((left, right, output), D::just(|| ())))
     }
 }
 
@@ -120,10 +128,10 @@ impl<C: arithmetic::Cycle> Step<C> for Step1Dup {
     type Output = HPrefixAOther;
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
-        _: &mut D,
+        dr: &mut D,
         _: DriverValue<D, Self::Witness<'source>>,
-        _: Encoder<'dr, 'source, D, Self::Left, HEADER_SIZE>,
-        _: Encoder<'dr, 'source, D, Self::Right, HEADER_SIZE>,
+        left: Encoder<'dr, 'source, D, Self::Left, HEADER_SIZE>,
+        right: Encoder<'dr, 'source, D, Self::Right, HEADER_SIZE>,
     ) -> Result<(
         (
             Encoded<'dr, D, Self::Left, HEADER_SIZE>,
@@ -132,14 +140,18 @@ impl<C: arithmetic::Cycle> Step<C> for Step1Dup {
         ),
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        unreachable!("witness not invoked in these tests")
+        let left = left.encode(dr)?;
+        let right = right.encode(dr)?;
+        let output = Encoded::from_gadget(());
+
+        Ok(((left, right, output), D::just(|| ())))
     }
 }
 
 #[test]
 fn register_steps_success_and_finalize() {
     let pasta = Pasta::baked();
-    let builder = ApplicationBuilder::<Pasta, R<8>, 0>::new()
+    let builder = ApplicationBuilder::<Pasta, R<8>, 4>::new()
         .register(Step0)
         .unwrap()
         .register(Step1)
@@ -150,7 +162,7 @@ fn register_steps_success_and_finalize() {
 #[test]
 #[should_panic]
 fn register_steps_out_of_order_should_fail() {
-    ApplicationBuilder::<Pasta, R<8>, 0>::new()
+    ApplicationBuilder::<Pasta, R<8>, 4>::new()
         .register(Step1)
         .unwrap();
 }
@@ -158,7 +170,7 @@ fn register_steps_out_of_order_should_fail() {
 #[test]
 #[should_panic]
 fn register_steps_duplicate_prefix_should_fail() {
-    ApplicationBuilder::<Pasta, R<8>, 0>::new()
+    ApplicationBuilder::<Pasta, R<8>, 4>::new()
         .register(Step0)
         .unwrap()
         .register(Step1Dup)
