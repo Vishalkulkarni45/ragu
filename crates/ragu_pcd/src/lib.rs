@@ -10,23 +10,27 @@
 extern crate alloc;
 
 use arithmetic::Cycle;
-use ragu_circuits::polynomials::Rank;
+use ragu_circuits::{
+    mesh::{Mesh, MeshBuilder},
+    polynomials::Rank,
+};
 use ragu_core::{Error, Result};
 
 use alloc::collections::BTreeMap;
 use core::{any::TypeId, marker::PhantomData};
 
-pub use header::{Header, Prefix};
-use step::Step;
+use header::Header;
+use step::{Step, adapter::Adapter};
 
-mod header;
+pub mod header;
 pub mod step;
 
 /// Builder for an [`Application`](crate::Application) for proof-carrying data.
 pub struct ApplicationBuilder<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize> {
+    circuit_mesh: MeshBuilder<'params, C::CircuitField, R>,
     num_application_steps: usize,
     header_map: BTreeMap<header::Prefix, TypeId>,
-    _marker: PhantomData<(C, R, [(); HEADER_SIZE], &'params ())>,
+    _marker: PhantomData<[(); HEADER_SIZE]>,
 }
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Default
@@ -43,6 +47,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
     /// Create an empty [`ApplicationBuilder`] for proof-carrying data.
     pub fn new() -> Self {
         ApplicationBuilder {
+            circuit_mesh: MeshBuilder::new(),
             num_application_steps: 0,
             header_map: BTreeMap::new(),
             _marker: PhantomData,
@@ -52,7 +57,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
     /// Register a new application-defined [`Step`] in this context. The
     /// provided [`Step`]'s [`INDEX`](Step::INDEX) should be the next sequential
     /// index that has not been inserted yet.
-    pub fn register<S: Step<C> + 'params>(mut self, _step: S) -> Result<Self> {
+    pub fn register<S: Step<C> + 'params>(mut self, step: S) -> Result<Self> {
         // NB: all internal steps are registered after application steps, and so
         // we can pass 0 to this function.
         if S::INDEX.circuit_index(0) != self.num_application_steps {
@@ -79,6 +84,10 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
                 );
             }
         }
+
+        self.circuit_mesh = self
+            .circuit_mesh
+            .register_circuit(Adapter::<C, S, R, HEADER_SIZE>::new(step))?;
         self.num_application_steps += 1;
 
         Ok(self)
@@ -86,8 +95,10 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
 
     /// Perform finalization and optimization steps to produce the
     /// [`Application`].
-    pub fn finalize(self, _params: &C) -> Result<Application<'params, C, R, HEADER_SIZE>> {
+    pub fn finalize(self, params: &C) -> Result<Application<'params, C, R, HEADER_SIZE>> {
         Ok(Application {
+            circuit_mesh: self.circuit_mesh.finalize(params.circuit_poseidon())?,
+            num_application_steps: self.num_application_steps,
             _marker: PhantomData,
         })
     }
@@ -95,5 +106,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
 
 /// The recursion context that is used to create and verify proof-carrying data.
 pub struct Application<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize> {
-    _marker: PhantomData<(C, R, [(); HEADER_SIZE], &'params ())>,
+    circuit_mesh: Mesh<'params, C::CircuitField, R>,
+    num_application_steps: usize,
+    _marker: PhantomData<[(); HEADER_SIZE]>,
 }

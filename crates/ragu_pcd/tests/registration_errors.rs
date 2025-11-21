@@ -7,7 +7,10 @@ use ragu_core::{
 };
 use ragu_pasta::Pasta;
 use ragu_pcd::step::{Encoded, Encoder, Index, Step};
-use ragu_pcd::{ApplicationBuilder, Header, Prefix};
+use ragu_pcd::{
+    ApplicationBuilder,
+    header::{Header, Prefix},
+};
 
 // Header A with prefix 0
 struct HPrefixA;

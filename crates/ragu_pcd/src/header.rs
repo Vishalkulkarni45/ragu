@@ -1,3 +1,6 @@
+//! Headers are succinct representations of data used to represent the current
+//! state of a computation.
+
 use ff::Field;
 use ragu_core::{
     Result,
