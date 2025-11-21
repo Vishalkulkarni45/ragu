@@ -1,4 +1,11 @@
+use arithmetic::Cycle;
+use ragu_core::{
+    Result,
+    drivers::{Driver, DriverValue},
+};
+
 use super::header::Header;
+pub use encoder::{Encoded, Encoder};
 
 mod encoder;
 mod padded;
@@ -66,4 +73,44 @@ fn test_index_map() {
     assert_eq!(Index::internal(0).circuit_index(num_application_steps), 10);
     assert_eq!(Index::new(0).circuit_index(num_application_steps), 0);
     assert_eq!(Index::new(1).circuit_index(num_application_steps), 1);
+}
+
+/// Represents a node in the computational graph (or the proof-carrying data
+/// tree) that represents the merging of two pieces of proof-carrying data.
+pub trait Step<C: Cycle>: Sized + Send + Sync {
+    /// Each unique [`Step`] implementation within a provided context must have
+    /// a unique index.
+    const INDEX: Index;
+
+    /// The witness data needed to construct a proof for this step.
+    type Witness<'source>: Send;
+
+    /// Auxillary information produced during circuit synthesis. This may be
+    /// necessary to construct the [`Header::Data`] for the resulting proof.
+    type Aux<'source>: Send;
+
+    /// The "left" header expected during this step.
+    type Left: Header<C::CircuitField>;
+
+    /// The "right" header expected during this step.
+    type Right: Header<C::CircuitField>;
+
+    /// The header produced during this step.
+    type Output: Header<C::CircuitField>;
+
+    /// The main synthesis method that checks the validity of this merging step.
+    fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+        &self,
+        dr: &mut D,
+        witness: DriverValue<D, Self::Witness<'source>>,
+        left: Encoder<'dr, 'source, D, Self::Left, HEADER_SIZE>,
+        right: Encoder<'dr, 'source, D, Self::Right, HEADER_SIZE>,
+    ) -> Result<(
+        (
+            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
+            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
+            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
+        ),
+        DriverValue<D, Self::Aux<'source>>,
+    )>;
 }
