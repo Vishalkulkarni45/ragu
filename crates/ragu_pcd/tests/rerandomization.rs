@@ -97,7 +97,7 @@ fn rerandomization_flow() {
         .unwrap()
         .register(Step1)
         .unwrap()
-        .finalize(&pasta)
+        .finalize(pasta)
         .unwrap();
 
     let mut rng = StdRng::seed_from_u64(1234);

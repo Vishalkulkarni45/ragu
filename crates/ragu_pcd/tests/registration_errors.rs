@@ -156,7 +156,7 @@ fn register_steps_success_and_finalize() {
         .unwrap()
         .register(Step1)
         .unwrap();
-    builder.finalize(&pasta).unwrap();
+    builder.finalize(pasta).unwrap();
 }
 
 #[test]

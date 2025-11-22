@@ -44,7 +44,7 @@ pub struct Pcd<'source, C: Cycle, R: Rank, H: Header<C::CircuitField>> {
     pub data: H::Data<'source>,
 }
 
-impl<'source, C: Cycle, R: Rank, H: Header<C::CircuitField>> Clone for Pcd<'source, C, R, H> {
+impl<C: Cycle, R: Rank, H: Header<C::CircuitField>> Clone for Pcd<'_, C, R, H> {
     fn clone(&self) -> Self {
         Pcd {
             proof: self.proof.clone(),
