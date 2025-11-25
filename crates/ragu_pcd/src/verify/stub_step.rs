@@ -1,4 +1,4 @@
-//! A dummy step used only for verification to compute k(Y) via the Adapter.
+//! A stub step used only for verification to compute k(Y) via the Adapter.
 
 use arithmetic::Cycle;
 use ragu_core::{
@@ -8,24 +8,27 @@ use ragu_core::{
 
 use core::marker::PhantomData;
 
-use super::{Encoded, Encoder, Header, Index, Step};
+use crate::{
+    header::Header,
+    step::{Encoded, Encoder, Index, Step},
+};
 
-/// A dummy step that is only used in verification to compute k(Y) via the
+/// A stub step that is only used in verification to compute k(Y) via the
 /// Adapter's instance method. This step is never registered; it exists solely
 /// to provide the correct associated types for the Adapter.
-pub(crate) struct VerifyAdapter<H> {
+pub(crate) struct StubStep<H> {
     _marker: PhantomData<H>,
 }
 
-impl<H> VerifyAdapter<H> {
+impl<H> StubStep<H> {
     pub fn new() -> Self {
-        VerifyAdapter {
+        StubStep {
             _marker: PhantomData,
         }
     }
 }
 
-impl<C: Cycle, H: Header<C::CircuitField>> Step<C> for VerifyAdapter<H> {
+impl<C: Cycle, H: Header<C::CircuitField>> Step<C> for StubStep<H> {
     // This step is never registered, so we use a sentinel index.
     const INDEX: Index = Index::new(usize::MAX);
 
@@ -55,6 +58,6 @@ impl<C: Cycle, H: Header<C::CircuitField>> Step<C> for VerifyAdapter<H> {
     where
         Self: 'dr,
     {
-        unreachable!("VerifyAdapter::witness should never be called")
+        unreachable!("StubStep::witness should never be called")
     }
 }

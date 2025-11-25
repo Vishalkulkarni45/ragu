@@ -9,15 +9,14 @@
 
 extern crate alloc;
 
-use arithmetic::{Cycle, eval};
+use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{
     CircuitExt,
-    mesh::{Mesh, MeshBuilder, omega_j},
+    mesh::{Mesh, MeshBuilder},
     polynomials::Rank,
 };
 use ragu_core::{Error, Result};
-use ragu_primitives::vec::{ConstLen, FixedVec};
 use rand::Rng;
 
 use alloc::{collections::BTreeMap, vec};
@@ -26,12 +25,14 @@ use core::{any::TypeId, marker::PhantomData};
 use circuits::{dummy::Dummy, internal_circuit_index};
 use header::Header;
 pub use proof::{Pcd, Proof};
-use step::{Step, adapter::Adapter, verify_adapter::VerifyAdapter};
+use step::{Step, adapter::Adapter};
 
 mod circuits;
 pub mod header;
+mod merge;
 mod proof;
 pub mod step;
+mod verify;
 
 /// Builder for an [`Application`] for proof-carrying data.
 pub struct ApplicationBuilder<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize> {
@@ -201,74 +202,29 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     ///   [`Step::Right`] header.
     pub fn merge<'source, RNG: Rng, S: Step<C>>(
         &self,
-        _rng: &mut RNG,
+        rng: &mut RNG,
         step: S,
         witness: S::Witness<'source>,
         left: Pcd<'source, C, R, S::Left>,
         right: Pcd<'source, C, R, S::Right>,
     ) -> Result<(Proof<C, R>, S::Aux<'source>)> {
-        if let Some(index) = S::INDEX.get_application_index() {
-            if index >= self.num_application_steps {
-                return Err(Error::Initialization(
-                    "attempted to use application Step index that exceeds Application registered steps".into(),
-                ));
-            }
-        }
-
-        let circuit_id = S::INDEX.circuit_index(Some(self.num_application_steps));
-        let circuit = Adapter::<C, S, R, HEADER_SIZE>::new(step);
-        let (rx, aux) = circuit.rx::<R>(
-            (left.data, right.data, witness),
-            self.circuit_mesh.get_key(),
-        )?;
-
-        let ((left_header, right_header), aux) = aux;
-
-        Ok((
-            Proof {
-                circuit_id,
-                left_header: left_header.into_inner(),
-                right_header: right_header.into_inner(),
-                rx,
-                _marker: PhantomData,
-            },
-            aux,
-        ))
+        merge::merge::<C, R, RNG, S, HEADER_SIZE>(
+            self.num_application_steps,
+            &self.circuit_mesh,
+            rng,
+            step,
+            witness,
+            left,
+            right,
+        )
     }
 
     /// Verifies some [`Pcd`] for the provided [`Header`].
     pub fn verify<RNG: Rng, H: Header<C::CircuitField>>(
         &self,
         pcd: &Pcd<'_, C, R, H>,
-        mut rng: RNG,
+        rng: RNG,
     ) -> Result<bool> {
-        let rx = &pcd.proof.rx;
-        let circuit_id = omega_j(pcd.proof.circuit_id as u32);
-        let y = C::CircuitField::random(&mut rng);
-        let z = C::CircuitField::random(&mut rng);
-        let sy = self.circuit_mesh.wy(circuit_id, y);
-        let tz = R::tz(z);
-
-        let mut rhs = rx.clone();
-        rhs.dilate(z);
-        rhs.add_assign(&sy);
-        rhs.add_assign(&tz);
-
-        let left_header =
-            FixedVec::<_, ConstLen<HEADER_SIZE>>::try_from(pcd.proof.left_header.clone())
-                .map_err(|_| Error::MalformedEncoding("left_header has incorrect size".into()))?;
-        let right_header =
-            FixedVec::<_, ConstLen<HEADER_SIZE>>::try_from(pcd.proof.right_header.clone())
-                .map_err(|_| Error::MalformedEncoding("right_header has incorrect size".into()))?;
-
-        let ky = {
-            let adapter = Adapter::<C, VerifyAdapter<H>, R, HEADER_SIZE>::new(VerifyAdapter::new());
-            let instance = (left_header, right_header, pcd.data.clone());
-            adapter.ky(instance)?
-        };
-
-        let valid = rx.revdot(&rhs) == eval(ky.iter(), y);
-
-        Ok(valid)
+        verify::verify::<C, R, RNG, H, HEADER_SIZE>(&self.circuit_mesh, pcd, rng)
     }
 }
