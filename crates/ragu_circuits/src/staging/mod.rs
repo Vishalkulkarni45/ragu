@@ -216,7 +216,9 @@ pub trait StagedCircuit<F: Field, R: Rank>: Sized + Send + Sync {
         &self,
         dr: &mut D,
         instance: DriverValue<D, Self::Instance<'source>>,
-    ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>>;
+    ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>>
+    where
+        Self: 'dr;
 
     /// Given a witness type for this circuit, perform a computation using the
     /// provided [`Driver`] and return the `Self::Output` gadget that the
@@ -229,7 +231,9 @@ pub trait StagedCircuit<F: Field, R: Rank>: Sized + Send + Sync {
     ) -> Result<(
         <Self::Output as GadgetKind<F>>::Rebind<'dr, D>,
         DriverValue<D, Self::Aux<'source>>,
-    )>;
+    )>
+    where
+        Self: 'dr;
 }
 
 /// Wrapper type that implements [`Circuit`] for a given [`StagedCircuit`].
@@ -268,7 +272,10 @@ impl<F: Field, R: Rank, S: StagedCircuit<F, R>> Circuit<F> for Staged<F, R, S> {
         &self,
         dr: &mut D,
         instance: DriverValue<D, S::Instance<'source>>,
-    ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>> {
+    ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>>
+    where
+        Self: 'dr,
+    {
         self.circuit.instance(dr, instance)
     }
 
@@ -279,7 +286,10 @@ impl<F: Field, R: Rank, S: StagedCircuit<F, R>> Circuit<F> for Staged<F, R, S> {
     ) -> Result<(
         <Self::Output as GadgetKind<F>>::Rebind<'dr, D>,
         DriverValue<D, S::Aux<'source>>,
-    )> {
+    )>
+    where
+        Self: 'dr,
+    {
         self.circuit.witness(StageBuilder::new(dr), witness)
     }
 }
