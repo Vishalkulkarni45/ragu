@@ -5,42 +5,35 @@ use ragu_core::{
     drivers::{Driver, DriverValue},
     gadgets::{GadgetKind, Kind},
 };
-use ragu_primitives::{Element, vec::FixedVec};
+use ragu_primitives::Element;
 
-use alloc::vec;
+/// The dummy circuit for trivial proofs. Outputs a single `1` element
+/// representing the trivial header prefix, which sits in the lowest degree
+/// term of k(y) after reversal in the adapter.
+pub struct Dummy;
 
-use crate::step::adapter::TripleConstLen;
-
-pub struct Dummy<const HEADER_SIZE: usize>;
-
-impl<F: Field, const HEADER_SIZE: usize> Circuit<F> for Dummy<HEADER_SIZE> {
+impl<F: Field> Circuit<F> for Dummy {
     type Instance<'source> = ();
     type Witness<'source> = ();
-    type Output = Kind![F; FixedVec<Element<'_, _>, TripleConstLen<HEADER_SIZE>>];
+    type Output = Kind![F; Element<'_, _>];
     type Aux<'source> = ();
 
     fn instance<'dr, 'source: 'dr, D: Driver<'dr, F = F>>(
         &self,
-        dr: &mut D,
+        _: &mut D,
         _: DriverValue<D, Self::Instance<'source>>,
     ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>> {
-        let mut trivial_header = vec![Element::zero(dr); HEADER_SIZE * 3];
-        trivial_header[0] = Element::one(); // Reserved prefix for trivial header.
-
-        Ok(FixedVec::try_from(trivial_header).unwrap())
+        Ok(Element::one())
     }
 
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = F>>(
         &self,
-        dr: &mut D,
+        _: &mut D,
         _: DriverValue<D, Self::Witness<'source>>,
     ) -> Result<(
         <Self::Output as GadgetKind<F>>::Rebind<'dr, D>,
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        let mut trivial_header = vec![Element::zero(dr); HEADER_SIZE * 3];
-        trivial_header[0] = Element::one(); // Reserved prefix for trivial header.
-
-        Ok((FixedVec::try_from(trivial_header).unwrap(), D::just(|| ())))
+        Ok((Element::one(), D::just(|| ())))
     }
 }

@@ -18,10 +18,7 @@ pub fn trivial<C: Cycle, R: Rank, const HEADER_SIZE: usize>(
     num_application_steps: usize,
     mesh: &Mesh<'_, C::CircuitField, R>,
 ) -> Proof<C, R> {
-    let rx = Dummy::<HEADER_SIZE>
-        .rx((), mesh.get_key())
-        .expect("should not fail")
-        .0;
+    let rx = Dummy.rx((), mesh.get_key()).expect("should not fail").0;
 
     Proof {
         rx,

@@ -82,6 +82,7 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
             elements.push(Element::alloc(dr, D::just(|| right_header.snag()[i]))?);
         }
 
+        elements.reverse();
         Ok(FixedVec::try_from(elements).expect("correct length"))
     }
 
@@ -126,6 +127,7 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
             ((left_header, right_header), aux.take())
         });
 
+        elements.reverse();
         Ok((FixedVec::try_from(elements).expect("correct length"), aux))
     }
 }
