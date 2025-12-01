@@ -5,7 +5,7 @@ default:
 build *ARGS:
   cargo build {{ARGS}}
 
-build-release *ARGS:
+build_release *ARGS:
   cargo build --release --workspace --all-targets {{ARGS}}
 
 lint:
@@ -13,12 +13,14 @@ lint:
   cargo fmt --all -- --check
 
 fix:
+  cargo fmt --all
   cargo fix --allow-dirty --allow-staged
+  cargo clippy --fix --allow-dirty --allow-staged
 
 _install_binstall:
   @which cargo-binstall >/dev/null 2>&1 || cargo install cargo-binstall
 
-_book_setup:
+_book_setup: _install_binstall
   @cargo binstall -y mdbook@0.4.52 mdbook-katex@0.9.4 mdbook-mermaid@0.16.2
 
 # locally [build | serve | watch] Ragu book
@@ -26,7 +28,7 @@ book COMMAND: _book_setup
   mdbook {{COMMAND}} ./book --open
 
 # run CI checks locally (formatting, clippy, tests)
-ci-local:
+ci_local:
   @echo "Running formatting check..."
   cargo fmt --all -- --check
   @echo "Running clippy..."
