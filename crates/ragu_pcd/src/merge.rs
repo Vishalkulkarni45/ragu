@@ -25,7 +25,8 @@ pub fn merge<'source, C: Cycle, R: Rank, RNG: Rng, S: Step<C>, const HEADER_SIZE
     let _circuit_poseidon = params.circuit_poseidon();
     let circuit_id = S::INDEX.circuit_index(Some(num_application_steps))?;
     let circuit = Adapter::<C, S, R, HEADER_SIZE>::new(step);
-    let (rx, aux) = circuit.rx::<R>((left.data, right.data, witness), circuit_mesh.get_key())?;
+    let (application_rx, aux) =
+        circuit.rx::<R>((left.data, right.data, witness), circuit_mesh.get_key())?;
 
     let ((left_header, right_header), aux) = aux;
 
@@ -34,7 +35,7 @@ pub fn merge<'source, C: Cycle, R: Rank, RNG: Rng, S: Step<C>, const HEADER_SIZE
             circuit_id,
             left_header: left_header.into_inner(),
             right_header: right_header.into_inner(),
-            rx,
+            application_rx,
             _marker: PhantomData,
         },
         aux,
