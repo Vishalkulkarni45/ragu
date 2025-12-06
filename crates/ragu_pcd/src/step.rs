@@ -63,6 +63,7 @@ impl Index {
             }
         }
     }
+
     /// Creates a new internal-defined [`Step`] index. Only called internally by
     /// Ragu.
     pub(crate) const fn internal(value: usize) -> Self {
