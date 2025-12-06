@@ -67,7 +67,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
     /// provided [`Step`]'s [`INDEX`](Step::INDEX) should be the next sequential
     /// index that has not been inserted yet.
     pub fn register<S: Step<C> + 'params>(mut self, step: S) -> Result<Self> {
-        S::INDEX.assert_index(self.num_application_steps);
+        S::INDEX.assert_index(self.num_application_steps)?;
 
         self.prevent_duplicate_prefixes::<S::Output>()?;
         self.prevent_duplicate_prefixes::<S::Left>()?;

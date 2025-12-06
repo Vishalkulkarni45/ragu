@@ -81,13 +81,16 @@ impl Index {
     /// ## Panics
     ///
     /// Panics if called on an internal step.
-    pub(crate) fn assert_index(&self, expect_id: usize) {
+    pub(crate) fn assert_index(&self, expect_id: usize) -> Result<()> {
         match self.index {
             StepIndex::Application(i) => {
-                assert!(
-                    i == expect_id,
-                    "steps must be registered in sequential order"
-                )
+                if i != expect_id {
+                    return Err(ragu_core::Error::Initialization(
+                        "steps must be registered in sequential order".into(),
+                    ));
+                }
+
+                Ok(())
             }
             StepIndex::Internal(_) => panic!("step should be application-defined"),
         }
@@ -101,7 +104,7 @@ fn test_index_map() -> Result<()> {
     assert_eq!(Index::internal(0).circuit_index(num_application_steps)?, 10);
     assert_eq!(Index::new(0).circuit_index(num_application_steps)?, 0);
     assert_eq!(Index::new(1).circuit_index(num_application_steps)?, 1);
-    Index::new(999).assert_index(999);
+    Index::new(999).assert_index(999)?;
     assert!(Index::new(10).circuit_index(num_application_steps).is_err());
 
     Ok(())
