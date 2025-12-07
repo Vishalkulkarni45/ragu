@@ -2,7 +2,8 @@ use arithmetic::Cycle;
 use ragu_circuits::{mesh::MeshBuilder, polynomials::Rank, staging::StageExt};
 use ragu_core::Result;
 
-use crate::merge::NUM_REVDOT_CLAIMS;
+// TODO: This should be derived from the actual number of circuits in the mesh.
+pub const NUM_REVDOT_CLAIMS: usize = 3;
 
 pub mod c;
 pub mod dummy;

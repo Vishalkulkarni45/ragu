@@ -24,8 +24,7 @@ use crate::{
         compute_c::{ComputeRevdotClaim, ErrorMatrix, RevdotClaimInput},
     },
     header::Header,
-    internal_circuits::{self, dummy},
-    merge::NUM_REVDOT_CLAIMS,
+    internal_circuits::{self, NUM_REVDOT_CLAIMS, dummy},
 };
 
 /// Represents a recursive proof for the correctness of some computation.

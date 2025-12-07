@@ -20,13 +20,10 @@ use crate::{
         ErrorTermsLen,
         compute_c::{ComputeRevdotClaim, ErrorMatrix, RevdotClaimInput},
     },
-    internal_circuits,
+    internal_circuits::{self, NUM_REVDOT_CLAIMS},
     proof::{ApplicationProof, InternalCircuits, Pcd, PreambleProof, Proof},
     step::{Step, adapter::Adapter},
 };
-
-// TODO: This should be derived from the actual number of circuits in the mesh.
-pub const NUM_REVDOT_CLAIMS: usize = 3;
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     /// Merge two PCD into one using a provided [`Step`].

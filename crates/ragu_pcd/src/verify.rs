@@ -12,7 +12,9 @@ use ragu_primitives::vec::{ConstLen, FixedVec};
 use rand::Rng;
 
 use crate::{
-    Application, Pcd, header::Header, internal_circuits, merge::NUM_REVDOT_CLAIMS,
+    Application, Pcd,
+    header::Header,
+    internal_circuits::{self, NUM_REVDOT_CLAIMS},
     step::adapter::Adapter,
 };
 
