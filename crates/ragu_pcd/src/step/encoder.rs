@@ -108,8 +108,6 @@ impl<'dr, 'source: 'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HE
         let mut raw = Vec::with_capacity(HEADER_SIZE);
         gadget.write(&mut emulator, &mut Pipe::new(dr, &mut raw))?;
 
-        Ok(Encoded::Raw(
-            FixedVec::try_from(raw).expect("correct length"),
-        ))
+        Ok(Encoded::Raw(FixedVec::try_from(raw)?))
     }
 }

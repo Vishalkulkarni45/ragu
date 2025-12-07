@@ -8,7 +8,7 @@ use ragu_core::{
 };
 use ragu_primitives::{
     Element, GadgetExt,
-    vec::{ConstLen, FixedVec, Len},
+    vec::{CollectFixed, ConstLen, FixedVec, Len},
 };
 
 use alloc::vec::Vec;
@@ -83,7 +83,7 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
         }
 
         elements.reverse();
-        Ok(FixedVec::try_from(elements).expect("correct length"))
+        FixedVec::try_from(elements)
     }
 
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>>(
@@ -111,23 +111,21 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
         left.write(dr, &mut elements)?;
         right.write(dr, &mut elements)?;
 
-        let aux = D::just(|| {
+        let aux = D::with(|| {
             let left_header = elements[HEADER_SIZE..HEADER_SIZE * 2]
                 .iter()
                 .map(|e| *e.value().take())
-                .collect::<Vec<_>>();
-            let left_header = FixedVec::try_from(left_header).expect("correct length");
+                .collect_fixed()?;
 
             let right_header = elements[HEADER_SIZE * 2..HEADER_SIZE * 3]
                 .iter()
                 .map(|e| *e.value().take())
-                .collect::<Vec<_>>();
-            let right_header = FixedVec::try_from(right_header).expect("correct length");
+                .collect_fixed()?;
 
-            ((left_header, right_header), aux.take())
-        });
+            Ok(((left_header, right_header), aux.take()))
+        })?;
 
         elements.reverse();
-        Ok((FixedVec::try_from(elements).expect("correct length"), aux))
+        Ok((FixedVec::try_from(elements)?, aux))
     }
 }

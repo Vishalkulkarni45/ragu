@@ -91,6 +91,28 @@ impl<T, L: Len> TryFrom<Vec<T>> for FixedVec<T, L> {
     }
 }
 
+/// Extension trait for collecting an iterator into a [`FixedVec`].
+pub trait CollectFixed: Iterator + Sized {
+    /// Collect this iterator into a `FixedVec`, returning an error if the
+    /// collected length does not match `L::len()`.
+    fn collect_fixed<L: Len>(self) -> Result<FixedVec<Self::Item, L>> {
+        FixedVec::try_from(self.collect::<Vec<_>>())
+    }
+
+    /// Collect this iterator of `Result`s into a `FixedVec`, short-circuiting
+    /// on the first error, then returning an error if the length does not
+    /// match `L::len()`.
+    fn try_collect_fixed<T, L: Len>(self) -> Result<FixedVec<T, L>>
+    where
+        Self: Iterator<Item = Result<T>>,
+    {
+        let vec = self.collect::<Result<Vec<_>>>()?;
+        FixedVec::try_from(vec)
+    }
+}
+
+impl<I: Iterator> CollectFixed for I {}
+
 impl<T, L: Len> FixedVec<T, L> {
     /// Creates a new `FixedVec` from a vector, returning an error if the length
     /// does not match `L::len()`.

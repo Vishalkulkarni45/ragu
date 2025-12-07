@@ -27,7 +27,7 @@ use alloc::vec::Vec;
 use crate::{
     Boolean, Element, Point,
     promotion::Demoted,
-    vec::{ConstLen, FixedVec},
+    vec::{CollectFixed, ConstLen, FixedVec},
 };
 
 /// Represents a challenge used to scale elliptic curve points.
@@ -47,21 +47,19 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
     pub fn alloc(dr: &mut D, value: DriverValue<D, Uendo>) -> Result<Self> {
         // Convert the provided Uendo into a little-endian representation of its
         // bits.
-        let mut bits = Vec::with_capacity(Uendo::BITS as usize);
-        for i in 0..(Uendo::BITS as usize) {
-            let bit = Boolean::alloc(
-                dr,
-                value
-                    .view()
-                    .map(|v| (*v >> i) & Uendo::from(1u64) == Uendo::from(1u64)),
-            )?;
-            bits.push(Demoted::new(&bit)?);
-        }
+        let bits = (0..Uendo::BITS as usize)
+            .map(|i| {
+                let bit = Boolean::alloc(
+                    dr,
+                    value
+                        .view()
+                        .map(|v| (*v >> i) & Uendo::from(1u64) == Uendo::from(1u64)),
+                )?;
+                Demoted::new(&bit)
+            })
+            .try_collect_fixed()?;
 
-        Ok(Endoscalar {
-            bits: FixedVec::try_from(bits).expect("correct length"),
-            value,
-        })
+        Ok(Endoscalar { bits, value })
     }
 
     /// Returns an iterator over the bits in this endoscalar, little endian order.
@@ -143,7 +141,7 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
         }
 
         Ok(Endoscalar {
-            bits: FixedVec::try_from(bits).expect("correct length"),
+            bits: FixedVec::try_from(bits)?,
             value,
         })
     }

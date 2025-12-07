@@ -95,7 +95,7 @@ mod tests {
     use ragu_primitives::{
         Element, GadgetExt,
         io::Write,
-        vec::{ConstLen, FixedVec},
+        vec::{CollectFixed, ConstLen, FixedVec},
     };
 
     use super::Padded;
@@ -111,13 +111,9 @@ mod tests {
         let mut dr = Emulator::execute();
         let dr = &mut dr;
         let gadget = MySillyGadget {
-            blah: FixedVec::try_from(vec![
-                Element::alloc(dr, Always::maybe_just(|| F::from(1u64)))?,
-                Element::alloc(dr, Always::maybe_just(|| F::from(2u64)))?,
-                Element::alloc(dr, Always::maybe_just(|| F::from(3u64)))?,
-                Element::alloc(dr, Always::maybe_just(|| F::from(4u64)))?,
-            ])
-            .unwrap(),
+            blah: (1u64..=4)
+                .map(|n| Element::alloc(dr, Always::maybe_just(|| F::from(n))))
+                .try_collect_fixed()?,
         };
 
         {
@@ -145,13 +141,9 @@ mod tests {
         let mut dr = Emulator::execute();
         let dr = &mut dr;
         let gadget = MySillyGadget {
-            blah: FixedVec::try_from(vec![
-                Element::alloc(dr, Always::maybe_just(|| F::from(1u64)))?,
-                Element::alloc(dr, Always::maybe_just(|| F::from(2u64)))?,
-                Element::alloc(dr, Always::maybe_just(|| F::from(3u64)))?,
-                Element::alloc(dr, Always::maybe_just(|| F::from(4u64)))?,
-            ])
-            .unwrap(),
+            blah: (1u64..=4)
+                .map(|n| Element::alloc(dr, Always::maybe_just(|| F::from(n))))
+                .try_collect_fixed()?,
         };
 
         {
