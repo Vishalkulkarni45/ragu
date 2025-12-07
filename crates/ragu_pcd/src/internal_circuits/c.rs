@@ -19,10 +19,7 @@ use super::{
     stages::native::preamble,
     unified::{self, OutputBuilder},
 };
-use crate::components::{
-    ErrorTermsLen,
-    fold_revdot::{RevdotFolding, RevdotFoldingInput},
-};
+use crate::components::{ErrorTermsLen, fold_revdot};
 
 pub const CIRCUIT_ID: usize = super::C_CIRCUIT_ID;
 pub const STAGED_ID: usize = super::C_STAGED_ID;
@@ -116,14 +113,13 @@ impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::Circuit
                 .map(|_| Element::zero(dr))
                 .collect_fixed()?;
 
-            let input = RevdotFoldingInput {
-                mu,
-                nu,
-                error_terms,
-                ky_values,
-            };
-
-            let c = dr.routine(RevdotFolding::<NUM_REVDOT_CLAIMS>, input)?;
+            let c = fold_revdot::compute_c::<_, NUM_REVDOT_CLAIMS>(
+                dr,
+                &mu,
+                &nu,
+                &error_terms,
+                &ky_values,
+            )?;
             unified_output.c.set(c);
         }
 

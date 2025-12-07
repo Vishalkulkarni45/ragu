@@ -6,7 +6,7 @@ use ragu_circuits::{
     staging::StageExt,
 };
 use ragu_core::{
-    drivers::{Driver, emulator::Emulator},
+    drivers::emulator::Emulator,
     maybe::{Always, Maybe, MaybeKind},
 };
 use ragu_primitives::{
@@ -19,10 +19,7 @@ use alloc::{vec, vec::Vec};
 
 use crate::{
     Application,
-    components::{
-        ErrorTermsLen,
-        fold_revdot::{RevdotFolding, RevdotFoldingInput},
-    },
+    components::{ErrorTermsLen, fold_revdot},
     header::Header,
     internal_circuits::{self, NUM_REVDOT_CLAIMS, dummy},
 };
@@ -188,14 +185,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 .map(|_| Element::zero(dr))
                 .collect_fixed()?;
 
-            let input = RevdotFoldingInput {
-                mu,
-                nu,
-                error_terms,
-                ky_values,
-            };
-            let c = dr.routine(RevdotFolding::<NUM_REVDOT_CLAIMS>, input)?;
-            Ok(*c.value().take())
+            Ok(*fold_revdot::compute_c::<_, NUM_REVDOT_CLAIMS>(
+                dr,
+                &mu,
+                &nu,
+                &error_terms,
+                &ky_values,
+            )?
+            .value()
+            .take())
         })
         .expect("c should not fail");
 
