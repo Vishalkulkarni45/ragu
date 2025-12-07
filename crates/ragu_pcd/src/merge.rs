@@ -1,12 +1,24 @@
 use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{CircuitExt, polynomials::Rank, staging::StageExt};
-use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
-use ragu_primitives::{GadgetExt, Point, Sponge};
+use ragu_core::{
+    Result,
+    drivers::{Driver, emulator::Emulator},
+    maybe::{Always, Maybe, MaybeKind},
+};
+use ragu_primitives::{
+    Element, GadgetExt, Point, Sponge,
+    vec::{CollectFixed, Len},
+};
 use rand::Rng;
 
 use crate::{
-    Application, internal_circuits,
+    Application,
+    components::{
+        ErrorTermsLen,
+        fold_revdot::{ErrorMatrix, RevdotFolding, RevdotFoldingInput},
+    },
+    internal_circuits::{self, NUM_REVDOT_CLAIMS},
     proof::{ApplicationProof, InternalCircuits, Pcd, PreambleProof, Proof},
     step::{Step, adapter::Adapter},
 };
@@ -65,17 +77,61 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 Ok(*sponge.squeeze(dr)?.value().take())
             })?;
 
+        // Generate dummy values for mu, nu, and error_terms (for now – these will be derived challenges)
+        let mu = C::CircuitField::random(&mut *rng);
+        let nu = C::CircuitField::random(&mut *rng);
+        let mu_inv = mu.invert().unwrap();
+
+        let error_terms = (0..ErrorTermsLen::<NUM_REVDOT_CLAIMS>::len())
+            .map(|_| C::CircuitField::random(&mut *rng))
+            .collect_fixed()?;
+
+        // Compute c by running the routine in a wireless emulator
+        let c: C::CircuitField =
+            Emulator::emulate_wireless((mu, nu, mu_inv, error_terms.clone()), |dr, _| {
+                let mu = Element::alloc(dr, Always::maybe_just(|| mu))?;
+                let nu = Element::alloc(dr, Always::maybe_just(|| nu))?;
+
+                let error_matrix = ErrorMatrix::new(
+                    error_terms
+                        .iter()
+                        .map(|&et| Element::alloc(dr, Always::maybe_just(|| et)))
+                        .try_collect_fixed()?,
+                );
+
+                let ky_values = (0..NUM_REVDOT_CLAIMS)
+                    .map(|_| Element::zero(dr))
+                    .collect_fixed()?;
+
+                let input = RevdotFoldingInput {
+                    mu,
+                    nu,
+                    error_matrix,
+                    ky_values,
+                };
+                let c = dr.routine(RevdotFolding::<NUM_REVDOT_CLAIMS>, input)?;
+                Ok(*c.value().take())
+            })?;
+
         // Create the unified instance.
         let unified_instance = &internal_circuits::unified::Instance {
             nested_preamble_commitment,
             w,
+            c,
         };
 
-        // Circuit for computing `c` value (incomplete)
-        let (c_rx, _) = internal_circuits::c::Circuit::<C, R>::new(circuit_poseidon).rx::<R>(
-            internal_circuits::c::Witness { unified_instance },
-            self.circuit_mesh.get_key(),
-        )?;
+        // C staged circuit.
+        let (c_rx, _) =
+            internal_circuits::c::Circuit::<C, R, NUM_REVDOT_CLAIMS>::new(circuit_poseidon)
+                .rx::<R>(
+                    internal_circuits::c::Witness {
+                        unified_instance,
+                        mu,
+                        nu,
+                        error_terms,
+                    },
+                    self.circuit_mesh.get_key(),
+                )?;
 
         // Application
         let application_circuit_id = S::INDEX.circuit_index(self.num_application_steps)?;
@@ -95,7 +151,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     nested_preamble_commitment,
                     nested_preamble_blind,
                 },
-                internal_circuits: InternalCircuits { w, c_rx },
+                internal_circuits: InternalCircuits { w, c, c_rx },
                 application: ApplicationProof {
                     circuit_id: application_circuit_id,
                     left_header: left_header.into_inner(),

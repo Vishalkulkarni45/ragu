@@ -22,6 +22,8 @@ pub struct Output<'dr, D: Driver<'dr>, C: Cycle> {
     pub nested_preamble_commitment: Point<'dr, D, C::NestedCurve>,
     #[ragu(gadget)]
     pub w: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub c: Element<'dr, D>,
 
     /// This is used to ensure k(Y) has a zero coefficient for the linear term.
     #[ragu(gadget)]
@@ -31,6 +33,7 @@ pub struct Output<'dr, D: Driver<'dr>, C: Cycle> {
 pub struct Instance<C: Cycle> {
     pub nested_preamble_commitment: C::NestedCurve,
     pub w: C::CircuitField,
+    pub c: C::CircuitField,
 }
 
 /// An entry in the shared public inputs for an internal circuit.
@@ -69,6 +72,7 @@ impl<'a, 'dr, D: Driver<'dr>, T: Clone, C: Cycle> Slot<'a, 'dr, D, T, C> {
 pub struct OutputBuilder<'a, 'dr, D: Driver<'dr>, C: Cycle> {
     pub nested_preamble_commitment: Slot<'a, 'dr, D, Point<'dr, D, C::NestedCurve>, C>,
     pub w: Slot<'a, 'dr, D, Element<'dr, D>, C>,
+    pub c: Slot<'a, 'dr, D, Element<'dr, D>, C>,
 }
 
 impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, 'dr, D, C> {
@@ -90,6 +94,7 @@ impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, '
         OutputBuilder {
             nested_preamble_commitment: point_slot!(nested_preamble_commitment),
             w: element_slot!(w),
+            c: element_slot!(c),
         }
     }
 
@@ -101,6 +106,7 @@ impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, '
         Ok(Output {
             nested_preamble_commitment: self.nested_preamble_commitment.unwrap(dr, instance),
             w: self.w.unwrap(dr, instance),
+            c: self.c.unwrap(dr, instance),
             zero: Element::zero(dr),
         })
     }

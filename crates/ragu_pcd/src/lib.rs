@@ -24,6 +24,7 @@ use header::Header;
 pub use proof::{Pcd, Proof};
 use step::{Step, adapter::Adapter};
 
+mod components;
 pub mod header;
 mod internal_circuits;
 mod merge;

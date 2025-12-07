@@ -8,7 +8,10 @@ use ragu_core::{
     drivers::{Driver, DriverValue},
     maybe::Maybe,
 };
-use ragu_primitives::{GadgetExt, Sponge};
+use ragu_primitives::{
+    Element, GadgetExt, Sponge,
+    vec::{CollectFixed, FixedVec, Len},
+};
 
 use core::marker::PhantomData;
 
@@ -16,16 +19,20 @@ use super::{
     stages::native::preamble,
     unified::{self, OutputBuilder},
 };
+use crate::components::{
+    ErrorTermsLen,
+    fold_revdot::{ErrorMatrix, RevdotFolding, RevdotFoldingInput},
+};
 
 pub const CIRCUIT_ID: usize = super::C_CIRCUIT_ID;
 pub const STAGED_ID: usize = super::C_STAGED_ID;
 
-pub struct Circuit<'a, C: Cycle, R> {
+pub struct Circuit<'a, C: Cycle, R, const NUM_REVDOT_CLAIMS: usize> {
     circuit_poseidon: &'a C::CircuitPoseidon,
     _marker: PhantomData<(C, R)>,
 }
 
-impl<'a, C: Cycle, R: Rank> Circuit<'a, C, R> {
+impl<'a, C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> Circuit<'a, C, R, NUM_REVDOT_CLAIMS> {
     pub fn new(circuit_poseidon: &'a C::CircuitPoseidon) -> Staged<C::CircuitField, R, Self> {
         Staged::new(Circuit {
             circuit_poseidon,
@@ -34,15 +41,20 @@ impl<'a, C: Cycle, R: Rank> Circuit<'a, C, R> {
     }
 }
 
-pub struct Witness<'a, C: Cycle> {
+pub struct Witness<'a, C: Cycle, const NUM_REVDOT_CLAIMS: usize> {
     pub unified_instance: &'a unified::Instance<C>,
+    pub mu: C::CircuitField,
+    pub nu: C::CircuitField,
+    pub error_terms: FixedVec<C::CircuitField, ErrorTermsLen<NUM_REVDOT_CLAIMS>>,
 }
 
-impl<C: Cycle, R: Rank> StagedCircuit<C::CircuitField, R> for Circuit<'_, C, R> {
+impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::CircuitField, R>
+    for Circuit<'_, C, R, NUM_REVDOT_CLAIMS>
+{
     type Final = preamble::Stage<C, R>;
 
     type Instance<'source> = &'source unified::Instance<C>;
-    type Witness<'source> = Witness<'source, C>;
+    type Witness<'source> = Witness<'source, C, NUM_REVDOT_CLAIMS>;
     type Output = unified::OutputKind<C>;
     type Aux<'source> = ();
 
@@ -84,6 +96,36 @@ impl<C: Cycle, R: Rank> StagedCircuit<C::CircuitField, R> for Circuit<'_, C, R> 
 
             // Use our local w value to impose upon the unified instance
             unified_output.w.set(w);
+        }
+
+        // TODO: Call Horner's method routine to evaluate k(Y) polynomials at y.
+
+        // Compute c, the folded revdot product claim.
+        {
+            // TODO: witnessing these values for now; derive them later
+            let mu = Element::alloc(dr, witness.view().map(|w| w.mu))?;
+            let nu = Element::alloc(dr, witness.view().map(|w| w.nu))?;
+
+            // Allocate error terms from witness as an error matrix.
+            let error_elements = (0..ErrorTermsLen::<NUM_REVDOT_CLAIMS>::len())
+                .map(|i| Element::alloc(dr, witness.view().map(|w| w.error_terms[i])))
+                .try_collect_fixed()?;
+            let error_matrix = ErrorMatrix::new(error_elements);
+
+            // TODO: Use zeros for ky_values for now.
+            let ky_values = (0..NUM_REVDOT_CLAIMS)
+                .map(|_| Element::zero(dr))
+                .collect_fixed()?;
+
+            let input = RevdotFoldingInput {
+                mu,
+                nu,
+                error_matrix,
+                ky_values,
+            };
+
+            let c = dr.routine(RevdotFolding::<NUM_REVDOT_CLAIMS>, input)?;
+            unified_output.c.set(c);
         }
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))

@@ -11,7 +11,12 @@ use ragu_core::{Error, Result};
 use ragu_primitives::vec::{ConstLen, FixedVec};
 use rand::Rng;
 
-use crate::{Application, Pcd, header::Header, internal_circuits, step::adapter::Adapter};
+use crate::{
+    Application, Pcd,
+    header::Header,
+    internal_circuits::{self, NUM_REVDOT_CLAIMS},
+    step::adapter::Adapter,
+};
 
 mod stub_step;
 use stub_step::StubStep;
@@ -43,8 +48,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let unified_instance = internal_circuits::unified::Instance {
             nested_preamble_commitment: pcd.proof.preamble.nested_preamble_commitment,
             w: pcd.proof.internal_circuits.w,
+            c: pcd.proof.internal_circuits.c,
         };
-        let c = internal_circuits::c::Circuit::<C, R>::new(self.params.circuit_poseidon());
+        let c = internal_circuits::c::Circuit::<C, R, NUM_REVDOT_CLAIMS>::new(
+            self.params.circuit_poseidon(),
+        );
         let unified_ky = c.ky(&unified_instance)?;
 
         let mut combined_rx = pcd.proof.preamble.native_preamble_rx.clone();
