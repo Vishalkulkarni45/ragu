@@ -24,13 +24,13 @@ use crate::components::fold_revdot::{self, ErrorTermsLen};
 pub const CIRCUIT_ID: usize = super::C_CIRCUIT_ID;
 pub const STAGED_ID: usize = super::C_STAGED_ID;
 
-pub struct Circuit<'params, C: Cycle, R, const NUM_REVDOT_CLAIMS: usize> {
+pub struct Circuit<'params, C: Cycle, R, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize> {
     params: &'params C,
     _marker: PhantomData<R>,
 }
 
-impl<'params, C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize>
-    Circuit<'params, C, R, NUM_REVDOT_CLAIMS>
+impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize>
+    Circuit<'params, C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>
 {
     pub fn new(params: &'params C) -> Staged<C::CircuitField, R, Self> {
         Staged::new(Circuit {
@@ -45,10 +45,10 @@ pub struct Witness<'a, C: Cycle, const NUM_REVDOT_CLAIMS: usize> {
     pub error_terms: FixedVec<C::CircuitField, ErrorTermsLen<NUM_REVDOT_CLAIMS>>,
 }
 
-impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::CircuitField, R>
-    for Circuit<'_, C, R, NUM_REVDOT_CLAIMS>
+impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize>
+    StagedCircuit<C::CircuitField, R> for Circuit<'_, C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>
 {
-    type Final = preamble::Stage<C, R>;
+    type Final = preamble::Stage<C, R, HEADER_SIZE>;
 
     type Instance<'source> = &'source unified::Instance<C>;
     type Witness<'source> = Witness<'source, C, NUM_REVDOT_CLAIMS>;
@@ -74,7 +74,7 @@ impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::Circuit
     where
         Self: 'dr,
     {
-        let (_, builder) = builder.add_stage::<preamble::Stage<C, R>>()?;
+        let (_, builder) = builder.add_stage::<preamble::Stage<C, R, HEADER_SIZE>>()?;
         let dr = builder.finish();
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);

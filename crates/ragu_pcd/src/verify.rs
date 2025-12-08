@@ -1,7 +1,5 @@
 //! This module provides the [`Application::verify`] method implementation.
 
-mod stub_step;
-
 use arithmetic::{Cycle, eval};
 use ff::PrimeField;
 use ragu_circuits::{
@@ -20,6 +18,7 @@ use crate::{
     step::adapter::Adapter,
 };
 
+pub(crate) mod stub_step;
 use stub_step::StubStep;
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
@@ -33,6 +32,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // simplify performing revdot claims on different polynomials in the
         // proof.
         let verifier = Verifier::new(&self.circuit_mesh, self.num_application_steps, &mut rng);
+
+        // TODO: Verify the preamble's public inputs match what's in the proof – verifier needs to
+        // reconstruct the expected preamble witness and check it.
 
         // Preamble verification
         let preamble_valid = verifier.check_stage(
@@ -53,7 +55,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             mu: pcd.proof.internal_circuits.mu,
             nu: pcd.proof.internal_circuits.nu,
         };
-        let c = internal_circuits::c::Circuit::<C, R, NUM_REVDOT_CLAIMS>::new(self.params);
+        let c =
+            internal_circuits::c::Circuit::<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>::new(self.params);
         let unified_ky = c.ky(&unified_instance)?;
 
         let mut combined_rx = pcd.proof.preamble.native_preamble_rx.clone();

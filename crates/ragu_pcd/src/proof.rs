@@ -18,7 +18,7 @@ use crate::{
     Application,
     components::fold_revdot::{self, ErrorTermsLen},
     header::Header,
-    internal_circuits::{self, NUM_REVDOT_CLAIMS, dummy},
+    internal_circuits::{self, NUM_REVDOT_CLAIMS, dummy, stages::native::preamble},
 };
 
 /// Represents a recursive proof for the correctness of some computation.
@@ -33,6 +33,8 @@ pub(crate) struct ApplicationProof<C: Cycle, R: Rank> {
     pub(crate) left_header: Vec<C::CircuitField>,
     pub(crate) right_header: Vec<C::CircuitField>,
     pub(crate) rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) blind: C::CircuitField,
+    pub(crate) commitment: C::HostCurve,
 }
 
 pub(crate) struct PreambleProof<C: Cycle, R: Rank> {
@@ -53,6 +55,8 @@ pub(crate) struct InternalCircuits<C: Cycle, R: Rank> {
     pub(crate) w: C::CircuitField,
     pub(crate) c: C::CircuitField,
     pub(crate) c_rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) c_rx_blinding: C::CircuitField,
+    pub(crate) c_rx_commitment: C::HostCurve,
     pub(crate) mu: C::CircuitField,
     pub(crate) nu: C::CircuitField,
 }
@@ -74,6 +78,8 @@ impl<C: Cycle, R: Rank> Clone for ApplicationProof<C, R> {
             left_header: self.left_header.clone(),
             right_header: self.right_header.clone(),
             rx: self.rx.clone(),
+            blind: self.blind,
+            commitment: self.commitment,
         }
     }
 }
@@ -97,6 +103,8 @@ impl<C: Cycle, R: Rank> Clone for InternalCircuits<C, R> {
             w: self.w,
             c: self.c,
             c_rx: self.c_rx.clone(),
+            c_rx_blinding: self.c_rx_blinding,
+            c_rx_commitment: self.c_rx_commitment,
             mu: self.mu,
             nu: self.nu,
         }
@@ -141,15 +149,44 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     fn try_trivial<RNG: Rng>(&self, rng: &mut RNG) -> Result<Proof<C, R>> {
         use internal_circuits::stages;
 
-        // Preamble rx polynomial
-        let native_preamble_rx = stages::native::preamble::Stage::<C, R>::rx(())?;
+        // Application rx polynomial
+        let application_rx = dummy::Circuit
+            .rx((), self.circuit_mesh.get_key())
+            .expect("should not fail")
+            .0;
+        let application_blind = C::CircuitField::random(&mut *rng);
+        let application_commitment =
+            application_rx.commit(self.params.host_generators(), application_blind);
+
+        // Preamble rx polynomial with dummy headers
+        let preamble_witness: preamble::Witness<C::CircuitField, HEADER_SIZE> = preamble::Witness {
+            left: preamble::ProofHeaders {
+                output_header: [C::CircuitField::ZERO; HEADER_SIZE],
+                left_header: [C::CircuitField::ZERO; HEADER_SIZE],
+                right_header: [C::CircuitField::ZERO; HEADER_SIZE],
+            },
+            right: preamble::ProofHeaders {
+                output_header: [C::CircuitField::ZERO; HEADER_SIZE],
+                left_header: [C::CircuitField::ZERO; HEADER_SIZE],
+                right_header: [C::CircuitField::ZERO; HEADER_SIZE],
+            },
+        };
+
+        let native_preamble_rx = preamble::Stage::<C, R, HEADER_SIZE>::rx(&preamble_witness)
+            .expect("preamble rx should not fail");
         let native_preamble_blind = C::CircuitField::random(&mut *rng);
         let native_preamble_commitment =
             native_preamble_rx.commit(self.params.host_generators(), native_preamble_blind);
 
+        let nested_preamble_points: [C::HostCurve; 3] = [
+            native_preamble_commitment,
+            application_commitment,
+            application_commitment,
+        ];
+
         // Nested preamble rx polynomial
         let nested_preamble_rx =
-            stages::nested::preamble::Stage::<C::HostCurve, R>::rx(native_preamble_commitment)?;
+            stages::nested::preamble::Stage::<C::HostCurve, R, 3>::rx(&nested_preamble_points)?;
         let nested_preamble_blind = C::ScalarField::random(&mut *rng);
         let nested_preamble_commitment =
             nested_preamble_rx.commit(self.params.nested_generators(), nested_preamble_blind);
@@ -201,16 +238,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             nu,
         };
         let internal_circuit_c =
-            internal_circuits::c::Circuit::<C, R, NUM_REVDOT_CLAIMS>::new(self.params);
+            internal_circuits::c::Circuit::<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>::new(self.params);
         let internal_circuit_c_witness = internal_circuits::c::Witness {
             unified_instance: &unified_instance,
             error_terms,
         };
-        let (c_rx, _) =
-            internal_circuit_c.rx::<R>(internal_circuit_c_witness, self.circuit_mesh.get_key())?;
-
-        // Application rx polynomial
-        let application_rx = dummy::Circuit.rx((), self.circuit_mesh.get_key())?.0;
+        let (c_rx, _) = internal_circuit_c
+            .rx::<R>(internal_circuit_c_witness, self.circuit_mesh.get_key())
+            .expect("c_rx computation should not fail");
+        let c_rx_blinding = C::CircuitField::random(&mut *rng);
+        let c_rx_commitment = c_rx.commit(self.params.host_generators(), c_rx_blinding);
 
         Ok(Proof {
             preamble: PreambleProof {
@@ -221,12 +258,22 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_preamble_commitment,
                 nested_preamble_blind,
             },
-            internal_circuits: InternalCircuits { w, c, c_rx, mu, nu },
+            internal_circuits: InternalCircuits {
+                w,
+                c,
+                c_rx,
+                c_rx_blinding,
+                c_rx_commitment,
+                mu,
+                nu,
+            },
             application: ApplicationProof {
                 rx: application_rx,
                 circuit_id: internal_circuits::index(self.num_application_steps, dummy::CIRCUIT_ID),
                 left_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
                 right_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
+                blind: application_blind,
+                commitment: application_commitment,
             },
         })
     }

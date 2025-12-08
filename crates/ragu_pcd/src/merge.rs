@@ -1,19 +1,21 @@
+use alloc::vec::Vec;
 use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{CircuitExt, polynomials::Rank, staging::StageExt};
-use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
+use ragu_core::{Error, Result, drivers::emulator::Emulator, maybe::Maybe};
 use ragu_primitives::{
     Element,
-    vec::{CollectFixed, Len},
+    vec::{CollectFixed, FixedVec, Len},
 };
 use rand::Rng;
 
 use crate::{
     Application,
     components::fold_revdot::{self, ErrorTermsLen},
-    internal_circuits::{self, NUM_REVDOT_CLAIMS},
+    internal_circuits::{self, NUM_REVDOT_CLAIMS, stages::native::preamble},
     proof::{ApplicationProof, InternalCircuits, Pcd, PreambleProof, Proof},
     step::{Step, adapter::Adapter},
+    verify::stub_step::StubStep,
 };
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
@@ -44,19 +46,69 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let host_generators = self.params.host_generators();
         let nested_generators = self.params.nested_generators();
 
-        // Compute the preamble (just a stub)
-        let native_preamble_rx =
-            internal_circuits::stages::native::preamble::Stage::<C, R>::rx(())?;
+        // Reconstruct k(Y) public input polynomial for the left and right PCDs.
+        let left_ky_poly = {
+            let adapter = Adapter::<C, StubStep<S::Left>, R, HEADER_SIZE>::new(StubStep::new());
+            let left_header = FixedVec::try_from(left.proof.application.left_header)
+                .map_err(|_| Error::MalformedEncoding("left header size".into()))?;
+            let right_header = FixedVec::try_from(left.proof.application.right_header)
+                .map_err(|_| Error::MalformedEncoding("right header size".into()))?;
+            adapter.ky((left_header, right_header, left.data.clone()))?
+        };
+
+        let right_ky_poly = {
+            let adapter = Adapter::<C, StubStep<S::Right>, R, HEADER_SIZE>::new(StubStep::new());
+            let left_header = FixedVec::try_from(right.proof.application.left_header)
+                .map_err(|_| Error::MalformedEncoding("left header size".into()))?;
+            let right_header = FixedVec::try_from(right.proof.application.right_header)
+                .map_err(|_| Error::MalformedEncoding("right header size".into()))?;
+            adapter.ky((left_header, right_header, right.data.clone()))?
+        };
+
+        // Extract headers from k(Y) polynomials.
+        fn extract_headers<F: Copy, const HEADER_SIZE: usize>(
+            ky_poly: Vec<F>,
+        ) -> preamble::ProofHeaders<F, HEADER_SIZE> {
+            let mut right_header = [ky_poly[0]; HEADER_SIZE];
+            let mut left_header = [ky_poly[0]; HEADER_SIZE];
+            let mut output_header = [ky_poly[0]; HEADER_SIZE];
+
+            for i in 0..HEADER_SIZE {
+                right_header[i] = ky_poly[i];
+                left_header[i] = ky_poly[HEADER_SIZE + i];
+                output_header[i] = ky_poly[2 * HEADER_SIZE + i];
+            }
+
+            preamble::ProofHeaders {
+                right_header,
+                left_header,
+                output_header,
+            }
+        }
+
+        let preamble_witness = preamble::Witness {
+            left: extract_headers::<C::CircuitField, HEADER_SIZE>(left_ky_poly),
+            right: extract_headers::<C::CircuitField, HEADER_SIZE>(right_ky_poly),
+        };
+
+        // Compute native preamble
+        let native_preamble_rx = preamble::Stage::<C, R, HEADER_SIZE>::rx(&preamble_witness)?;
         let native_preamble_blind = C::CircuitField::random(&mut *rng);
         let native_preamble_commitment =
             native_preamble_rx.commit(host_generators, native_preamble_blind);
 
+        let nested_preamble_points: [C::HostCurve; 3] = [
+            native_preamble_commitment,
+            left.proof.application.commitment,
+            right.proof.application.commitment,
+        ];
+
         // Compute nested preamble
-        let nested_preamble_rx = internal_circuits::stages::nested::preamble::Stage::<
-            C::HostCurve,
-            R,
-        >::rx(native_preamble_commitment)?;
-        let nested_preamble_blind = C::ScalarField::random(&mut *rng);
+        let nested_preamble_rx =
+            internal_circuits::stages::nested::preamble::Stage::<C::HostCurve, R, 3>::rx(
+                &nested_preamble_points,
+            )?;
+        let nested_preamble_blind: <C as Cycle>::ScalarField = C::ScalarField::random(&mut *rng);
         let nested_preamble_commitment =
             nested_preamble_rx.commit(nested_generators, nested_preamble_blind);
 
@@ -110,14 +162,17 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         };
 
         // C staged circuit.
-        let (c_rx, _) = internal_circuits::c::Circuit::<C, R, NUM_REVDOT_CLAIMS>::new(self.params)
-            .rx::<R>(
-                internal_circuits::c::Witness {
-                    unified_instance,
-                    error_terms,
-                },
-                self.circuit_mesh.get_key(),
-            )?;
+        let (c_rx, _) =
+            internal_circuits::c::Circuit::<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>::new(self.params)
+                .rx::<R>(
+                    internal_circuits::c::Witness {
+                        unified_instance,
+                        error_terms,
+                    },
+                    self.circuit_mesh.get_key(),
+                )?;
+        let c_rx_blinding = C::CircuitField::random(&mut *rng);
+        let c_rx_commitment = c_rx.commit(host_generators, c_rx_blinding);
 
         // Application
         let application_circuit_id = S::INDEX.circuit_index(self.num_application_steps)?;
@@ -125,6 +180,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             (left.data, right.data, witness),
             self.circuit_mesh.get_key(),
         )?;
+        let application_rx_blinding = C::CircuitField::random(&mut *rng);
+        let application_rx_commitment =
+            application_rx.commit(host_generators, application_rx_blinding);
+
         let ((left_header, right_header), aux) = aux;
 
         Ok((
@@ -137,12 +196,22 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     nested_preamble_commitment,
                     nested_preamble_blind,
                 },
-                internal_circuits: InternalCircuits { w, c, c_rx, mu, nu },
+                internal_circuits: InternalCircuits {
+                    w,
+                    c,
+                    c_rx,
+                    c_rx_blinding,
+                    c_rx_commitment,
+                    mu,
+                    nu,
+                },
                 application: ApplicationProof {
                     circuit_id: application_circuit_id,
                     left_header: left_header.into_inner(),
                     right_header: right_header.into_inner(),
                     rx: application_rx,
+                    blind: application_rx_blinding,
+                    commitment: application_rx_commitment,
                 },
             },
             aux,

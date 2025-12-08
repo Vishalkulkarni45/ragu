@@ -19,18 +19,19 @@ pub fn index(num_application_steps: usize, internal_index: usize) -> usize {
     num_application_steps + super::step::NUM_INTERNAL_STEPS + internal_index
 }
 
-pub fn register_all<'params, C: Cycle, R: Rank>(
+pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
     mesh: MeshBuilder<'params, C::CircuitField, R>,
     params: &'params C,
 ) -> Result<MeshBuilder<'params, C::CircuitField, R>> {
     let mesh = mesh.register_circuit(dummy::Circuit)?;
     let mesh = {
-        let c = c::Circuit::<C, R, NUM_REVDOT_CLAIMS>::new(params);
+        let c = c::Circuit::<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>::new(params);
         mesh.register_circuit_object(c.final_into_object()?)?
             .register_circuit(c)?
     };
 
-    let mesh =
-        mesh.register_circuit_object(stages::native::preamble::Stage::<C, R>::into_object()?)?;
+    let mesh = mesh.register_circuit_object(
+        stages::native::preamble::Stage::<C, R, HEADER_SIZE>::into_object()?,
+    )?;
     Ok(mesh)
 }
