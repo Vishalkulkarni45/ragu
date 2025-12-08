@@ -14,11 +14,9 @@ mod encoder;
 pub(crate) mod padded;
 pub(crate) mod rerandomize;
 
-/// Internal representation of a [`Step`] index distinguishing internal vs.
-/// application steps.
-enum StepIndex {
-    Internal(usize),
-    Application(usize),
+#[repr(usize)]
+pub(crate) enum InternalStepIndex {
+    Rerandomize = 0,
 }
 
 /// The number of internal steps used by Ragu for things like rerandomization or
@@ -27,21 +25,24 @@ enum StepIndex {
 /// * `0` is used for the rerandomization step (see [`rerandomize`]).
 pub(crate) const NUM_INTERNAL_STEPS: usize = 1;
 
-/// The index of a [`Step`] in an application.
+/// The index of a [`Step`] in an application, distinguishing internal vs.
+/// application steps.
 ///
 /// All steps added to an application have a unique index and must be inserted
 /// sequentially so that their location (and other metadata) can be identified
 /// during proof generation and at other times.
-pub struct Index {
-    index: StepIndex,
+pub enum StepIndex {
+    /// Identifies an application-defined step.
+    Application(usize),
+    /// Identifies an internal step defined by Ragu.
+    #[allow(private_interfaces)]
+    Internal(InternalStepIndex),
 }
 
-impl Index {
+impl StepIndex {
     /// Creates a new application-defined [`Step`] index.
     pub const fn new(value: usize) -> Self {
-        Index {
-            index: StepIndex::Application(value),
-        }
+        StepIndex::Application(value)
     }
 
     /// Returns the circuit index for this step.
@@ -49,9 +50,9 @@ impl Index {
     /// Pass the known number of application steps to validate and compute the
     /// final index of this step. Returns an error if an application step index
     /// exceeds the number of registered steps.
-    pub(crate) fn circuit_index(&self, num_application_steps: usize) -> Result<usize> {
-        match self.index {
-            StepIndex::Internal(i) => Ok(num_application_steps + i),
+    pub(crate) fn circuit_index(self, num_application_steps: usize) -> Result<usize> {
+        match self {
+            StepIndex::Internal(i) => Ok(num_application_steps + (i as usize)),
             StepIndex::Application(i) => {
                 if i >= num_application_steps {
                     return Err(ragu_core::Error::Initialization(
@@ -64,26 +65,14 @@ impl Index {
         }
     }
 
-    /// Creates a new internal-defined [`Step`] index. Only called internally by
-    /// Ragu.
-    pub(crate) const fn internal(value: usize) -> Self {
-        if value >= NUM_INTERNAL_STEPS {
-            panic!("invalid internal step index");
-        }
-
-        Index {
-            index: StepIndex::Internal(value),
-        }
-    }
-
     /// Called during application step registration to assert the appropriate
     /// next sequential index.
     ///
     /// ## Panics
     ///
     /// Panics if called on an internal step.
-    pub(crate) fn assert_index(&self, expect_id: usize) -> Result<()> {
-        match self.index {
+    pub(crate) fn assert_index(self, expect_id: usize) -> Result<()> {
+        match self {
             StepIndex::Application(i) => {
                 if i != expect_id {
                     return Err(ragu_core::Error::Initialization(
@@ -102,11 +91,18 @@ impl Index {
 fn test_index_map() -> Result<()> {
     let num_application_steps = 10;
 
-    assert_eq!(Index::internal(0).circuit_index(num_application_steps)?, 10);
-    assert_eq!(Index::new(0).circuit_index(num_application_steps)?, 0);
-    assert_eq!(Index::new(1).circuit_index(num_application_steps)?, 1);
-    Index::new(999).assert_index(999)?;
-    assert!(Index::new(10).circuit_index(num_application_steps).is_err());
+    assert_eq!(
+        StepIndex::Internal(InternalStepIndex::Rerandomize).circuit_index(num_application_steps)?,
+        10
+    );
+    assert_eq!(StepIndex::new(0).circuit_index(num_application_steps)?, 0);
+    assert_eq!(StepIndex::new(1).circuit_index(num_application_steps)?, 1);
+    StepIndex::new(999).assert_index(999)?;
+    assert!(
+        StepIndex::new(10)
+            .circuit_index(num_application_steps)
+            .is_err()
+    );
 
     Ok(())
 }
@@ -116,7 +112,7 @@ fn test_index_map() -> Result<()> {
 pub trait Step<C: Cycle>: Sized + Send + Sync {
     /// Each unique [`Step`] implementation within a provided context must have
     /// a unique index.
-    const INDEX: Index;
+    const INDEX: StepIndex;
 
     /// The witness data needed to construct a proof for this step.
     type Witness<'source>: Send;
