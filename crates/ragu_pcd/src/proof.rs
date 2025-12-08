@@ -224,7 +224,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits: InternalCircuits { w, c, c_rx, mu, nu },
             application: ApplicationProof {
                 rx: application_rx,
-                circuit_id: internal_circuits::index(self.num_application_steps, dummy::CIRCUIT_ID),
+                circuit_id: dummy::CIRCUIT_ID.circuit_index(self.num_application_steps),
                 left_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
                 right_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
             },

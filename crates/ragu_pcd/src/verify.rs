@@ -14,7 +14,7 @@ use rand::Rng;
 use crate::{
     Application, Pcd,
     header::Header,
-    internal_circuits::{self, NUM_REVDOT_CLAIMS},
+    internal_circuits::{self, InternalCircuitIndex, NUM_REVDOT_CLAIMS},
     step::adapter::Adapter,
 };
 
@@ -117,8 +117,12 @@ impl<'a, F: PrimeField, R: Rank> Verifier<'a, F, R> {
     }
 
     /// Check an rx polynomial for a stage (empty ky).
-    fn check_stage(&self, rx: &structured::Polynomial<F, R>, staging_id: usize) -> bool {
-        let circuit_id = internal_circuits::index(self.num_application_steps, staging_id);
+    fn check_stage(
+        &self,
+        rx: &structured::Polynomial<F, R>,
+        staging_id: InternalCircuitIndex,
+    ) -> bool {
+        let circuit_id = staging_id.circuit_index(self.num_application_steps);
         let sy = self.circuit_mesh.circuit_y(circuit_id, self.y);
 
         rx.revdot(&sy) == F::ZERO
@@ -128,10 +132,10 @@ impl<'a, F: PrimeField, R: Rank> Verifier<'a, F, R> {
     fn check_internal_circuit(
         &self,
         rx: &structured::Polynomial<F, R>,
-        internal_id: usize,
+        internal_id: InternalCircuitIndex,
         ky: &[F],
     ) -> bool {
-        let circuit_id = internal_circuits::index(self.num_application_steps, internal_id);
+        let circuit_id = internal_id.circuit_index(self.num_application_steps);
         self.check_circuit(rx, circuit_id, ky)
     }
 

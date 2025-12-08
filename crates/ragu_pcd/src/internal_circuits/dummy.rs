@@ -6,7 +6,7 @@ use ragu_core::{
 };
 use ragu_primitives::Element;
 
-pub const CIRCUIT_ID: usize = super::DUMMY_CIRCUIT_ID;
+pub use crate::internal_circuits::InternalCircuitIndex::DummyCircuit as CIRCUIT_ID;
 
 /// The dummy circuit for trivial proofs. Outputs a single `1` element
 /// representing the trivial header prefix, which sits in the lowest degree

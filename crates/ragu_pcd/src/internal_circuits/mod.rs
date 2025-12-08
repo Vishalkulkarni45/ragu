@@ -2,21 +2,27 @@ use arithmetic::Cycle;
 use ragu_circuits::{CircuitIndex, mesh::MeshBuilder, polynomials::Rank, staging::StageExt};
 use ragu_core::Result;
 
-// TODO: This should be derived from the actual number of circuits in the mesh.
-pub const NUM_REVDOT_CLAIMS: usize = 3;
-
 pub mod c;
 pub mod dummy;
 pub mod stages;
 pub mod unified;
 
-const DUMMY_CIRCUIT_ID: usize = 0;
-const C_STAGED_ID: usize = 1;
-const C_CIRCUIT_ID: usize = 2;
-const NATIVE_PREAMBLE_STAGING_ID: usize = 3;
+// TODO: This should be derived from the actual number of circuits in the mesh.
+pub const NUM_REVDOT_CLAIMS: usize = 3;
 
-pub fn index(num_application_steps: usize, internal_index: usize) -> CircuitIndex {
-    CircuitIndex::new(num_application_steps + super::step::NUM_INTERNAL_STEPS + internal_index)
+#[derive(Clone, Copy, Debug)]
+#[repr(usize)]
+pub enum InternalCircuitIndex {
+    DummyCircuit = 0,
+    ClaimStage = 1,
+    ClaimCircuit = 2,
+    PreambleStage = 3,
+}
+
+impl InternalCircuitIndex {
+    pub fn circuit_index(self, num_application_steps: usize) -> CircuitIndex {
+        CircuitIndex::new(num_application_steps + super::step::NUM_INTERNAL_STEPS + self as usize)
+    }
 }
 
 pub fn register_all<'params, C: Cycle, R: Rank>(

@@ -8,7 +8,7 @@ use ragu_core::{
 
 use core::marker::PhantomData;
 
-pub const STAGING_ID: usize = crate::internal_circuits::NATIVE_PREAMBLE_STAGING_ID;
+pub use crate::internal_circuits::InternalCircuitIndex::PreambleStage as STAGING_ID;
 
 pub struct Stage<C: Cycle, R> {
     _marker: PhantomData<(C, R)>,
