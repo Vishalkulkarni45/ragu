@@ -11,9 +11,7 @@ pub fn evaluate(input: LitInt) -> Result<TokenStream> {
         ));
     }
 
-    let impls = (2..max_tuple_size)
-        .map(generate_impl_for_size)
-        .collect::<Vec<_>>();
+    let impls = (2..max_tuple_size).map(generate_impl_for_size);
 
     Ok(quote! {
         #(#impls)*
