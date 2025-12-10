@@ -15,17 +15,17 @@
 //! to compile the added circuits into a mesh polynomial representation that can
 //! be efficiently evaluated at different restrictions.
 
+use arithmetic::{Domain, PoseidonPermutation, bitreverse};
+use ff::PrimeField;
+use ragu_core::{Error, Result, drivers::emulator::Emulator, maybe::Maybe};
+use ragu_primitives::{Element, Sponge};
+
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
+
 use crate::{
     Circuit, CircuitExt, CircuitObject,
     polynomials::{Rank, structured, unstructured},
 };
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
-use arithmetic::Domain;
-use arithmetic::PoseidonPermutation;
-use arithmetic::bitreverse;
-use ff::PrimeField;
-use ragu_core::{Error, Result, drivers::emulator::Emulator, maybe::Maybe};
-use ragu_primitives::{Element, Sponge};
 
 /// Builder for constructing a new [`Mesh`].
 pub struct MeshBuilder<'params, F: PrimeField, R: Rank> {

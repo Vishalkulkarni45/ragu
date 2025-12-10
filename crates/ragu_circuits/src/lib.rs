@@ -14,16 +14,6 @@
 
 extern crate alloc;
 
-use ff::Field;
-use ragu_core::{
-    Error, Result,
-    drivers::{Driver, DriverValue},
-    gadgets::GadgetKind,
-};
-use ragu_primitives::io::Write;
-
-use alloc::{boxed::Box, vec::Vec};
-
 pub mod composition;
 mod ky;
 pub mod mesh;
@@ -35,6 +25,16 @@ pub mod staging;
 
 #[cfg(test)]
 mod tests;
+
+use ff::Field;
+use ragu_core::{
+    Error, Result,
+    drivers::{Driver, DriverValue},
+    gadgets::GadgetKind,
+};
+use ragu_primitives::io::Write;
+
+use alloc::{boxed::Box, vec::Vec};
 
 use polynomials::{Rank, structured, unstructured};
 

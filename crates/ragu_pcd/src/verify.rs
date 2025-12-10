@@ -1,5 +1,7 @@
 //! This module provides the [`Application::verify`] method implementation.
 
+mod stub_step;
+
 use arithmetic::{Cycle, eval};
 use ff::PrimeField;
 use ragu_circuits::{
@@ -18,7 +20,6 @@ use crate::{
     step::adapter::Adapter,
 };
 
-mod stub_step;
 use stub_step::StubStep;
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {

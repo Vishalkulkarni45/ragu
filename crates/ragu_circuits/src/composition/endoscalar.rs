@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use arithmetic::{CurveAffine, Uendo};
 use ff::Field;
 use ragu_core::{
@@ -12,6 +11,8 @@ use ragu_primitives::{
     io::Write,
     vec::{CollectFixed, ConstLen, FixedVec},
 };
+
+use alloc::vec::Vec;
 
 use crate::{
     polynomials::Rank,

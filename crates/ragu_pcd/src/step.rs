@@ -1,5 +1,10 @@
 //! Merging operations defined for the proof-carrying data computational graph.
 
+pub(crate) mod adapter;
+mod encoder;
+pub(crate) mod padded;
+pub(crate) mod rerandomize;
+
 use arithmetic::Cycle;
 use ragu_core::{
     Result,
@@ -7,12 +12,8 @@ use ragu_core::{
 };
 
 use super::header::Header;
-pub use encoder::{Encoded, Encoder};
 
-pub(crate) mod adapter;
-mod encoder;
-pub(crate) mod padded;
-pub(crate) mod rerandomize;
+pub use encoder::{Encoded, Encoder};
 
 #[derive(Copy, Clone)]
 #[repr(usize)]

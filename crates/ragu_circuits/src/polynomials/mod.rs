@@ -1,11 +1,11 @@
 //! Representations and views of polynomials used in Ragu's proof system.
 
-use ff::Field;
-
 mod root_of_unity;
 pub mod structured;
 mod txz;
 pub mod unstructured;
+
+use ff::Field;
 
 pub use root_of_unity::enforce_root_of_unity;
 

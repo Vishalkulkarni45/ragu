@@ -10,14 +10,14 @@
 #![doc(html_favicon_url = "https://tachyon.z.cash/assets/ragu/v1_favicon32.png")]
 #![doc(html_logo_url = "https://tachyon.z.cash/assets/ragu/v1_rustdoc128.png")]
 
-use proc_macro::TokenStream;
-use syn::{DeriveInput, LitInt, parse_macro_input};
-
 mod derive;
 mod helpers;
 mod path_resolution;
 mod proc;
 mod substitution;
+
+use proc_macro::TokenStream;
+use syn::{DeriveInput, LitInt, parse_macro_input};
 
 use helpers::macro_body;
 

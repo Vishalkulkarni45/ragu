@@ -44,6 +44,10 @@
 //! [`FromDriver`] trait to specify how wires can be translated from one driver
 //! to another.
 
+pub mod emulator;
+mod linexp;
+mod phantom;
+
 use arithmetic::Coeff;
 use ff::Field;
 
@@ -53,10 +57,6 @@ use crate::{
     maybe::{Maybe, MaybeKind},
     routines::{Prediction, Routine},
 };
-
-pub mod emulator;
-mod linexp;
-mod phantom;
 
 pub use linexp::{DirectSum, LinearExpression};
 

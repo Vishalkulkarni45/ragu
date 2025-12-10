@@ -27,6 +27,11 @@ mod simulator;
 mod util;
 pub mod vec;
 
+use ragu_core::{Result, drivers::Driver, gadgets::Gadget};
+
+use io::{Buffer, Write};
+use promotion::Demoted;
+
 pub use boolean::{Boolean, multipack};
 pub use element::{Element, multiadd};
 pub use endoscalar::Endoscalar;
@@ -34,11 +39,6 @@ pub use lazy::Lazy;
 pub use point::Point;
 pub use poseidon::Sponge;
 pub use simulator::Simulator;
-
-use ragu_core::{Result, drivers::Driver, gadgets::Gadget};
-
-use io::{Buffer, Write};
-use promotion::Demoted;
 
 /// Primitive extension trait for all gadgets.
 pub trait GadgetExt<'dr, D: Driver<'dr>>: Gadget<'dr, D> {

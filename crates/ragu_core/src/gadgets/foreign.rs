@@ -1,8 +1,9 @@
 //! Implementations of gadgets for foreign types.
 
+use ff::Field;
+
 use alloc::{boxed::Box, vec::Vec};
 use core::marker::PhantomData;
-use ff::Field;
 
 use crate::{
     Result,

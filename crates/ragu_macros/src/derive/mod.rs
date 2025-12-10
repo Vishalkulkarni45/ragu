@@ -1,8 +1,8 @@
-use proc_macro2::Span;
-use syn::{AngleBracketedGenericArguments, GenericArgument, Lifetime, Type, parse_quote};
-
 pub mod gadget;
 pub mod gadgetwrite;
+
+use proc_macro2::Span;
+use syn::{AngleBracketedGenericArguments, GenericArgument, Lifetime, Type, parse_quote};
 
 use crate::helpers::GenericDriver;
 

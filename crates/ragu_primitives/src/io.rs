@@ -12,12 +12,13 @@
 //! contains multiple [`Boolean`](crate::Boolean)s can
 //! [pack](crate::boolean::multipack) many of them into far fewer [`Element`]s.
 
+mod pipe;
+
 use ff::Field;
 use ragu_core::{Result, drivers::Driver, gadgets::GadgetKind};
 
 use crate::Element;
 
-mod pipe;
 pub use pipe::Pipe;
 
 /// Represents a gadget that can be serialized into a sequence of [`Element`]s

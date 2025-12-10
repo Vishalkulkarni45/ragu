@@ -47,10 +47,10 @@
 //! In the case that a witness always exists, [`Emulator::always_wires`] can be
 //! used instead to fetch the values directly.
 
-use core::marker::PhantomData;
 use ff::Field;
 
 use alloc::vec::Vec;
+use core::marker::PhantomData;
 
 use crate::{
     Result,

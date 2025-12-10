@@ -1,10 +1,10 @@
-use arithmetic::Coeff;
-use ff::Field;
-use ragu_core::drivers::LinearExpression;
-
 pub mod sx;
 pub mod sxy;
 pub mod sy;
+
+use arithmetic::Coeff;
+use ff::Field;
+use ragu_core::drivers::LinearExpression;
 
 #[derive(Clone)]
 enum Wire<F> {

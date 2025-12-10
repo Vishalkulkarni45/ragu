@@ -9,6 +9,14 @@
 
 extern crate alloc;
 
+mod components;
+pub mod header;
+mod internal_circuits;
+mod merge;
+mod proof;
+pub mod step;
+mod verify;
+
 use arithmetic::Cycle;
 use ragu_circuits::{
     mesh::{Mesh, MeshBuilder},
@@ -23,14 +31,6 @@ use core::{any::TypeId, marker::PhantomData};
 use header::Header;
 pub use proof::{Pcd, Proof};
 use step::{Step, adapter::Adapter};
-
-mod components;
-pub mod header;
-mod internal_circuits;
-mod merge;
-mod proof;
-pub mod step;
-mod verify;
 
 /// Builder for an [`Application`] for proof-carrying data.
 pub struct ApplicationBuilder<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize> {

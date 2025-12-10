@@ -68,16 +68,7 @@
 #![doc(html_favicon_url = "https://tachyon.z.cash/assets/ragu/v1_favicon32.png")]
 #![doc(html_logo_url = "https://tachyon.z.cash/assets/ragu/v1_rustdoc128.png")]
 
-use ff::{Field, WithSmallOrderMulGroup};
-pub use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
-
 extern crate alloc;
-
-/// Converts a 256-bit integer literal into the little endian `[u64; 4]`
-/// representation that e.g. [`Fp::from_raw`](pasta_curves::Fp::from_raw) or
-/// [`Fp::pow`](pasta_curves::Fp::pow) need as input. This makes constants
-/// slightly more readable, but is not intended for use in other contexts.
-pub use ragu_macros::repr256;
 
 mod coeff;
 mod domain;
@@ -85,10 +76,19 @@ mod fft;
 mod uendo;
 mod util;
 
+use ff::{Field, WithSmallOrderMulGroup};
+
 pub use coeff::Coeff;
 pub use domain::Domain;
 pub use fft::{Ring, bitreverse};
+pub use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
 pub use util::{dot, eval, factor, factor_iter, geosum, mul};
+
+/// Converts a 256-bit integer literal into the little endian `[u64; 4]`
+/// representation that e.g. [`Fp::from_raw`](pasta_curves::Fp::from_raw) or
+/// [`Fp::pow`](pasta_curves::Fp::pow) need as input. This makes constants
+/// slightly more readable, but is not intended for use in other contexts.
+pub use ragu_macros::repr256;
 
 // TODO(ebfull): Use this if we need to increase the bit size of endoscalars.
 // pub use uendo::Uendo;

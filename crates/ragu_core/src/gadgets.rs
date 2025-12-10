@@ -68,15 +68,16 @@
 //! polymorphic over gadgets, and some gadgets are even composed of gadgets that
 //! are instantiated with different drivers.
 
-use ff::Field;
-
 mod foreign;
 mod sendable;
+
+use ff::Field;
 
 use super::{
     Result,
     drivers::{Driver, FromDriver},
 };
+
 pub use sendable::Sendable;
 
 /// An abstract data type (parameterized by a [`Driver`] type) which

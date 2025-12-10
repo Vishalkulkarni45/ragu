@@ -108,6 +108,9 @@
 //! Assuming stages are well-formed, they can be combined by merely adding them
 //! together with the final staging polynomial, producing the desired $r(X)$.
 
+mod builder;
+mod object;
+
 use ff::Field;
 use ragu_core::{
     Result,
@@ -123,9 +126,6 @@ use crate::{
     Circuit, CircuitObject,
     polynomials::{Rank, structured},
 };
-
-mod builder;
-mod object;
 
 pub use builder::{StageBuilder, StageGuard};
 

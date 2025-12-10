@@ -26,11 +26,6 @@
 
 extern crate alloc;
 
-use arithmetic::{Cycle, FixedGenerators};
-
-pub use common::{PallasGenerators, Pasta, VestaGenerators};
-pub use pasta_curves::{Ep, EpAffine, Eq, EqAffine, Fp, Fq};
-
 #[macro_use]
 mod macros;
 
@@ -41,6 +36,10 @@ mod common {
 mod poseidon_fp;
 mod poseidon_fq;
 
+use arithmetic::{Cycle, FixedGenerators};
+
+pub use common::{PallasGenerators, Pasta, VestaGenerators};
+pub use pasta_curves::{Ep, EpAffine, Eq, EqAffine, Fp, Fq};
 pub use poseidon_fp::PoseidonFp;
 pub use poseidon_fq::PoseidonFq;
 
