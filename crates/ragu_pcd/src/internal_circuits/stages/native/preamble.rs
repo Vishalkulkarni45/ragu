@@ -16,7 +16,7 @@ use ragu_primitives::{
 use core::marker::PhantomData;
 
 use crate::{
-    header::Header as HeaderTrait,
+    header::Header,
     internal_circuits::unified,
     proof::{Pcd, Proof},
     step::padded,
@@ -129,8 +129,8 @@ impl<'a, C: Cycle, R: Rank, const HEADER_SIZE: usize> Witness<'a, C, R, HEADER_S
         right: &'a Pcd<'_, C, R, HR>,
     ) -> Result<Self>
     where
-        HL: HeaderTrait<C::CircuitField>,
-        HR: HeaderTrait<C::CircuitField>,
+        HL: Header<C::CircuitField>,
+        HR: Header<C::CircuitField>,
     {
         Ok(Witness::new(
             &left.proof,
@@ -150,7 +150,7 @@ fn vec_to_array<F: Copy, const N: usize>(v: &[F]) -> Result<[F; N]> {
 
 // TODO: Implement Buffer for arrays/slices to avoid Vec allocation here.
 /// Encode header data into a fixed-size field element array.
-fn encode_output_header<F: PrimeField, H: HeaderTrait<F>, const HEADER_SIZE: usize>(
+fn encode_output_header<F: PrimeField, H: Header<F>, const HEADER_SIZE: usize>(
     data: H::Data<'_>,
 ) -> Result<[F; HEADER_SIZE]> {
     let mut emulator = Emulator::execute();
