@@ -1,32 +1,81 @@
 # Proof-Carrying Data
 
-## What is Proof-Carrying Data?
+**Proof-Carrying Data (PCD)** is a cryptographic primitive that allows data to
+be bundled together with a proof of its correctness. Unlike traditional
+[verifiable computation]—in which something like a SNARK is _attached_ to a
+piece of data to demonstrate its integrity—new PCD can take as input prior
+proofs along with the data they certify. This enables reasoning about an entire
+history of previously verified steps, supporting incremental, continual
+verification of computation rather than a single, one-shot proof.
 
-**Proof-Carrying Data (PCD)** is a cryptographic primitive where data is bundled together with a proof of its correctness. When you receive proof-carrying data, you get both:
-- The actual data (computation outputs, public inputs, etc.)
-- A cryptographic proof that this data was produced correctly
+This primitive is especially useful in distributed systems: nodes can pass data
+around along with evidence of how it is computed, allowing things like entire
+blockchain histories to be verified using only a snapshot of the _current_ state
+in the form of PCD.
 
-This allows nodes in a distributed system to pass data to each other along with verifiable evidence of how it was computed, without requiring recipients to re-execute the computation or trust the sender.
+[verifiable computation]: https://en.wikipedia.org/wiki/Verifiable_computing
 
-### IVC vs PCD
+## IVC vs. PCD
 
-**Incrementally Verifiable Computation (IVC)** handles linear chains of computation:
+**Incrementally Verifiable Computation (IVC)**, introduced by Valiant in his
+2007 [master's thesis](https://iacr.org/archive/tcc2008/49480001/49480001.pdf),
+recursively composes non-interactive proofs of knowledge. It can be viewed as a
+special, linear-chain instance of what was later
+[formalized](http://people.csail.mit.edu/tromer/papers/pcd.pdf) as
+Proof-Carrying Data by Tromer and Chiesa in 2010.
+
+IVC deals with linear chains of computation:
+
 ```
 Step 1 → Step 2 → Step 3 → Step 4
 ```
-Each step proves it correctly computed on the output of the previous step.
 
-**Proof-Carrying Data (PCD)** generalizes this to tree-structured computations:
+At each step, the prover takes as input the previous proof and the data
+representing the current state of the computation, verifies that proof, and
+outputs new state data together with a fresh proof attesting to the correctness
+of this state transition.
+
+PCD generalizes this to tree-structured computations:
+
 ```
-        Step 4
+        Step 3
        /      \
-    Step 2   Step 3
+    Step 2a   Step 2b
        \      /
         Step 1
 ```
-Each node can verify and combine proofs from multiple previous computations, enabling parallel and distributed workflows.
 
-**Ragu's Approach:** Ragu treats all recursion uniformly as PCD with arity-2 (two inputs). Even when you only need IVC semantics (a linear chain), Ragu uses a dummy second input to maintain a uniform structure. This creates a lopsided binary tree where IVC emerges as a special case. While this might seem less efficient than specialized IVC handling, the performance cost appears negligible while significantly simplifying the implementation and API.
+Here, the PCD produced in **Step 1** is used as input to two independent steps
+(**Step 2a** and **Step 2b**) and the results are used as input for a third
+**Step 3**. This illustrates the scalability that makes PCD powerful:
+computational integrity is established inductively, and can be computed in
+parallel.
+
+> **Ragu's Approach**: Ragu provides a PCD framework in which every step is
+uniformly treated as an arity-2 node in a PCD tree, always accepting two proofs
+as input. This simplifies the design at the cost of reduced flexibility and
+performance in situations where only IVC (linear-chain) semantics are necessary.
+
+## Accumulation and Folding Schemes
+
+[Halo] introduced a new technique for realizing recursive SNARKs whereby full
+verification of previous proofs is continually collapsed at each step, expanding
+the space of protocols that could be used to build PCD. This technique was later
+formalized and generalized as an [accumulation
+scheme](https://eprint.iacr.org/2020/499) (or [folding
+scheme](https://eprint.iacr.org/2021/370)).
+
+> **Ragu's Approach**: Ragu implements a construction very similar to the
+original Halo protocol, with some performance improvements and simplifications
+that emerged immediately after its publication.
+
+[Halo]: https://eprint.iacr.org/2019/1021
+
+-----
+
+# TODO:
+
+-----
 
 ## Recursive Proof Composition
 
