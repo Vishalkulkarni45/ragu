@@ -232,7 +232,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     }
 
     fn try_trivial<RNG: Rng>(&self, rng: &mut RNG) -> Result<Proof<C, R>> {
-        // Application rx polynomial
+        // Dummy application rx commitment
         let application_rx = dummy::Circuit
             .rx((), self.circuit_mesh.get_key())
             .expect("should not fail")
@@ -240,6 +240,24 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let application_blind = C::CircuitField::random(&mut *rng);
         let application_commitment =
             application_rx.commit(self.params.host_generators(), application_blind);
+
+        // Dummy c_rx commitment
+        let c_rx_dummy_rx = dummy::Circuit
+            .rx((), self.circuit_mesh.get_key())
+            .expect("should not fail")
+            .0;
+        let c_rx_dummy_blind = C::CircuitField::random(&mut *rng);
+        let c_rx_dummy_commitment =
+            c_rx_dummy_rx.commit(self.params.host_generators(), c_rx_dummy_blind);
+
+        // Dummy v_rx commitment
+        let v_rx_dummy_rx = dummy::Circuit
+            .rx((), self.circuit_mesh.get_key())
+            .expect("should not fail")
+            .0;
+        let v_rx_dummy_blind = C::CircuitField::random(&mut *rng);
+        let v_rx_dummy_commitment =
+            v_rx_dummy_rx.commit(self.params.host_generators(), v_rx_dummy_blind);
 
         // Create a dummy proof to use for preamble witness.
         // The preamble witness needs proof references, but we're creating a trivial proof
@@ -258,12 +276,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits: InternalCircuits {
                 w: C::CircuitField::random(&mut *rng),
                 c: C::CircuitField::random(&mut *rng),
-                c_rx: application_rx.clone(),
-                c_rx_blind: C::CircuitField::random(&mut *rng),
-                c_rx_commitment: application_commitment,
-                v_rx: structured::Polynomial::new(),
-                v_rx_blind: C::CircuitField::random(&mut *rng),
-                v_rx_commitment: application_commitment,
+                c_rx: c_rx_dummy_rx.clone(),
+                c_rx_blind: c_rx_dummy_blind,
+                c_rx_commitment: c_rx_dummy_commitment,
+                v_rx: v_rx_dummy_rx.clone(),
+                v_rx_blind: v_rx_dummy_blind,
+                v_rx_commitment: v_rx_dummy_commitment,
                 mu: C::CircuitField::random(&mut *rng),
                 nu: C::CircuitField::random(&mut *rng),
                 alpha: C::CircuitField::random(&mut *rng),
@@ -318,18 +336,21 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let native_preamble_commitment =
             native_preamble_rx.commit(self.params.host_generators(), native_preamble_blind);
 
-        let nested_preamble_points: [C::HostCurve; 5] = [
+        let nested_preamble_points: [C::HostCurve; 7] = [
             native_preamble_commitment,
             application_commitment,
             application_commitment,
             // placeholder for left.c_rx_commitment and right.c_rx_commitment
-            application_commitment,
-            application_commitment,
+            c_rx_dummy_commitment,
+            c_rx_dummy_commitment,
+            // placeholder for left.v_rx_commitment and right.v_rx_commitment
+            v_rx_dummy_commitment,
+            v_rx_dummy_commitment,
         ];
 
         // Nested preamble rx polynomial
         let nested_preamble_rx =
-            stages::nested::preamble::Stage::<C::HostCurve, R, 5>::rx(&nested_preamble_points)?;
+            stages::nested::preamble::Stage::<C::HostCurve, R, 7>::rx(&nested_preamble_points)?;
         let nested_preamble_blind = C::ScalarField::random(&mut *rng);
         let nested_preamble_commitment =
             nested_preamble_rx.commit(self.params.nested_generators(), nested_preamble_blind);
@@ -457,12 +478,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             unified_instance: &unified_instance,
             error_terms,
         };
+
+        // Compute c_rx using the C-staged circuit
         let (c_rx, _) =
             internal_circuit_c.rx::<R>(internal_circuit_c_witness, self.circuit_mesh.get_key())?;
         let c_rx_blind = C::CircuitField::random(&mut *rng);
         let c_rx_commitment = c_rx.commit(self.params.host_generators(), c_rx_blind);
 
-        // Compute v_rx using the V circuit
+        // Compute v_rx using the V-staged circuit
         let internal_circuit_v =
             internal_circuits::v::Circuit::<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>::new(self.params);
         let internal_circuit_v_witness = internal_circuits::v::Witness {

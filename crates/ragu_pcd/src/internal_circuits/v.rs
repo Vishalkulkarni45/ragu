@@ -80,8 +80,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
         let (eval, builder) = builder.add_stage::<native_eval::Stage<C, R, HEADER_SIZE>>()?;
         let dr = builder.finish();
 
-        let _query = query.unenforced(witness.view().map(|w| w.query_witness))?;
-        let eval = eval.unenforced(witness.view().map(|w| w.eval_witness))?;
+        // TODO: Currently unused, we're missing alpha enforcement.
+        let _query = query.enforced(dr, witness.view().map(|w| w.query_witness))?;
+        let eval = eval.enforced(dr, witness.view().map(|w| w.eval_witness))?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
@@ -90,10 +91,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             .nested_f_commitment
             .get(dr, unified_instance)?;
 
-        // TODO: Computation of challenges (mu, nu).
-        // TODO: Computation of challenges x.
+        // TODO: Derive mu, nu challenges.
+        // TODO: Derive x challenge.
 
-        // Computation of challenge alpha.
+        // Derive alpha challenge.
         let alpha = {
             let nested_query_commitment = unified_output
                 .nested_query_commitment
@@ -102,7 +103,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
         };
         unified_output.alpha.set(alpha.clone());
 
-        // Computation of challenge u.
+        // Derive u challenge.
         {
             let u = transcript::derive_u::<_, C>(dr, &alpha, &nested_f_commitment, self.params)?;
 
@@ -112,7 +113,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             unified_output.u.set(u);
         }
 
-        // TODO: Computation of challenge beta.
+        // TODO: Derive beta challenge.
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

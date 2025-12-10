@@ -57,17 +57,19 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let native_preamble_commitment =
             native_preamble_rx.commit(host_generators, native_preamble_blind);
 
-        let nested_preamble_points: [C::HostCurve; 5] = [
+        let nested_preamble_points: [C::HostCurve; 7] = [
             native_preamble_commitment,
             left.proof.application.commitment,
             right.proof.application.commitment,
             left.proof.internal_circuits.c_rx_commitment,
             right.proof.internal_circuits.c_rx_commitment,
+            left.proof.internal_circuits.v_rx_commitment,
+            right.proof.internal_circuits.v_rx_commitment,
         ];
 
         // Compute nested preamble
         let nested_preamble_rx =
-            stages::nested::preamble::Stage::<C::HostCurve, R, 5>::rx(&nested_preamble_points)?;
+            stages::nested::preamble::Stage::<C::HostCurve, R, 7>::rx(&nested_preamble_points)?;
         let nested_preamble_blind: <C as Cycle>::ScalarField = C::ScalarField::random(&mut *rng);
         let nested_preamble_commitment =
             nested_preamble_rx.commit(nested_generators, nested_preamble_blind);
@@ -76,13 +78,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let w =
             crate::components::transcript::emulate_w::<C>(nested_preamble_commitment, self.params)?;
 
-        // TODO: Generate dummy values for mu, nu, and error_terms (these will later be derived challenges)
-        let mu = C::CircuitField::random(&mut *rng);
-        let nu = C::CircuitField::random(&mut *rng);
-
+        // TODO: Generate error terms and nested commitment.
         let error_terms = ErrorTermsLen::<NUM_REVDOT_CLAIMS>::range()
             .map(|_| C::CircuitField::random(&mut *rng))
             .collect_fixed()?;
+
+        // TODO: dummy challenge (stubbed for now).
+        let mu = C::CircuitField::random(&mut *rng);
+        let nu = C::CircuitField::random(&mut *rng);
 
         // Compute c by running the routine in a wireless emulator
         let c: C::CircuitField =
