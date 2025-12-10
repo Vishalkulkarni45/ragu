@@ -1,23 +1,4 @@
-# Constraint Systems: Bootle16
-
-The Bootle16 constraint system was proposed in [BCC+16] and later used in Sonic
-and Halo papers. It describes any NP relation $\Rel=\set{(x,w): \Cir(x,w)=1}$
-with public instance $x$ and secret satisfying witness $w$ using a set of
-**multiplication/Hadamard constraints** and **linear constraints** over the 
-witness vectors $\v{a},\v{b},\v{c}\in\F^n$ and public input vector $\v{k}\in\F^q$.
-
-- Multiplication: 
-$\v{a}_i \cdot \v{b}_i = \v{c}_i$ for $i\in\set{0,\ldots,n-1}$,
-each corresponding to the left, right, and output wire of a `mul` gate ($n$ in total).
-- Linear: 
-$\dot{\v{u}_j}{\v{a}} + \dot{\v{v}_j}{\v{b}} + \dot{\v{w}_j}{\v{c}} = \v{k}_j$ for 
-$\forall j\in\set{0,\ldots,q-1}$, corresponding to the internal wiring among gates 
-and public input/output enforcements. All $q$ tuples $(\v{u}_j, \v{v}_j, \v{w}_j)$ 
-are fixed and publicly known as they only depend on the circuit structure
-describing the computation, not the satisfying secret assignments.
-  - in `ragu`, we further enforce a `ONE` public input: $\v{c}_0=\v{k}_0=1$.
-
-### Example: Arithmetic Circuit to Bootle16 and R1CS
+# Bootle16 v.s. R1CS
 
 We demonstrate how to build Bootle16 CS and R1CS for the same toy arithmetic 
 circuit with 2 `mul` gates and 1 `add` gate (but slightly different wire labeling).
@@ -33,7 +14,9 @@ intermediate values for other allocated wires). As we will see below,
 gate relations for `add` and `scalar` are checked in the linear constraints as 
 part of a linear combination relationship between allocated wires.
 
-![example circuit](../../../assets/bootle16_cs.svg)
+<p align="center">
+  <img src="../assets/bootle16_cs.svg" alt="example_circuit" />
+</p>
 
 Under Bootle16 CS, define witness vectors 
 $\v{a}=(a_1, a_2), \v{b}=(b_1,b_2), \v{c}=(c_1, c_2)$, 
@@ -73,18 +56,7 @@ As we can see, R1CS is (sometimes) slightly more compact in the sense that it
 "squeezes" more linchecks in a single row -- the second rows of $A, B, C$ does
 lincheck for the left, right, and public input wire respectively.
 
-#### Sparse matrix
-
-One important characteristic of Bootle16's 
-$\begin{bmatrix}\v{u}_0\\\ldots\\\v{u}_{q-1}\end{bmatrix}$, 
-$\begin{bmatrix}\v{v}_0\\\ldots\\\v{v}_{q-1}\end{bmatrix}$, 
-$\begin{bmatrix}\v{w}_0\\\ldots\\\v{w}_{q-1}\end{bmatrix}$
-and R1CS's $A, B, C$ matrices is that they are all **sparse matrices**.
-Thus their representations are usually `(pos, val)` pairs rather than fully 
-$\F^{q\times n}$ memory-allocated matrices. This sparsity also allows _zero-cost 
-padding_ and picking convenient parameter like $q=4n$ without extra cost.
-
-### Bootle16 to R1CS
+## Bootle16 to R1CS
 
 The foregoing toy example should provide intuition of why Bootle16 and R1CS are 
 equally powerful. Here we provide a generic transformation from Bootle16 to R1CS, 

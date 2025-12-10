@@ -1,7 +1,5 @@
 # Arithmetization
 
-> explain Bootle16 CS -> revdot product relation
-
 **Additional Notation**:
 We further generalize the power vector notation to arbitrary range $[n,m)$ in the
 exponent: $\v{z^{n:m}}=(z^n,\ldots,z^{m-1})$.
@@ -18,18 +16,41 @@ A few arithmetic facts (assume all vectors have the same length):
 - $\dot{\rv{b}}{\rv{a} \circ \v{d}} = \dot{\v{b}}{\widehat{\rv{a}\circ\v{d}}}=
 \dot{\v{b}}{\v{a}\circ\rv{d}}$
 
-## Constraint System
 
-The witness vectors $\v{a}, \v{b}, \v{c} \in \F^n$ must satisfy $n$ _multiplication constraints_, where the $i$th such constraint takes the form $\v{a}_i \cdot \v{b}_i = \v{c}_i$. In addition, the witness must satisfy a set of $4n$ _linear constraints_, where the $j$th such constraint is of the form
+## Constraint System: Bootle16
 
-$$
-\sum_{i = 0}^{n - 1} \big( \v{u}_{j,i} \cdot \mathbf{a}_i \big) +
-\sum_{i = 0}^{n - 1} \big( \v{v}_{j,i} \cdot \mathbf{b}_i \big) +
-\sum_{i = 0}^{n - 1} \big( \v{w}_{j,i} \cdot \mathbf{c}_i \big) =
-\v{k}_j
-$$
+The Bootle16 constraint system was proposed in [BCC+16] and later used in Sonic
+and Halo papers. It describes any NP relation $\Rel=\set{(x,w): \Cir(x,w)=1}$
+with public instance $x$ and secret satisfying witness $w$ using a set of
+_multiplication constraints_ and _linear constraints_ over the
+witness vectors $\v{a},\v{b},\v{c}\in\F^n$ and public input vector $\v{k}\in\F^q$.
 
-for some (sparse) public input vector $\v{k} \in \F^{4n}$ and fixed matrices $\v{u}, \v{v}, \v{w} \in \F^{n \times 4n}$, where $\v{u_{j}}, \v{v_{j}}, \v{w_{j}} \in \F^{4n}$ denote the _j-th row_ of those matrices. Because $n$ is fixed, individual circuits vary only by these matrices after this reduction.
+**Multiplication/Hadamard Constraints**:
+$\v{a}_i \cdot \v{b}_i = \v{c}_i$ for $i\in\set{0,\ldots,n-1}$:
+each corresponding to the left, right, and output wire of a `mul` gate ($n$ in total).
+
+**Linear Constraints**:
+$\dot{\v{u}_j}{\v{a}} + \dot{\v{v}_j}{\v{b}} + \dot{\v{w}_j}{\v{c}} = \v{k}_j$ for
+$\forall j\in\set{0,\ldots,q-1}$: corresponding to the internal wiring among gates
+and public input/output enforcements. All $q$ tuples $(\v{u}_j, \v{v}_j, \v{w}_j)$
+are fixed and publicly known as they only depend on the circuit structure
+describing the computation, not the satisfying secret assignments.
+We further enforce a `ONE` public input: $\v{c}_0=\v{k}_0=1$.
+
+**Sparsity**:
+
+One important characteristic of Bootle16's
+$\begin{bmatrix}\v{u}_0\\\ldots\\\v{u}_{q-1}\end{bmatrix}$,
+$\begin{bmatrix}\v{v}_0\\\ldots\\\v{v}_{q-1}\end{bmatrix}$,
+$\begin{bmatrix}\v{w}_0\\\ldots\\\v{w}_{q-1}\end{bmatrix}$
+matrices is that they are all **sparse matrices**.
+Thus their representations are usually `(pos, val)` pairs rather than fully
+$\F^{q\times n}$ memory-allocated matrices. This sparsity also allows _zero-cost
+padding_ and picking convenient parameter like $q=4n$ without extra cost.
+
+Bootle16 CS is practically identical to the more commonly known R1CS, as they
+are linear-time interreducible, thus equivalent for all practical purposes.
+See [appendix](../../appendix/cs.md) for a more detailed comparison.
 
 ## Multiplication Constraints
 
