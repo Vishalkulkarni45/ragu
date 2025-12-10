@@ -17,9 +17,9 @@ command = "mdbook-mermaid"
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
 default-theme = "rust"
 preferred-dark-theme = "rust"
+additional-css = ["custom.css"]
 
 # Enable these to generate links with mdbook-rustdoc-link
 # Do not check in these uncommented.
 # [preprocessor.rustdoc-link]
 # after = ["links"]
-additional-css = ["custom.css"]
