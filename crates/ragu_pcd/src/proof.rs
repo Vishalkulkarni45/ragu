@@ -18,7 +18,7 @@ use crate::{
     Application,
     components::fold_revdot::{self, ErrorTermsLen},
     header::Header,
-    internal_circuits::{self, NUM_REVDOT_CLAIMS, dummy, stages::native::preamble},
+    internal_circuits::{self, NUM_REVDOT_CLAIMS, dummy, stages, unified},
 };
 
 /// Represents a recursive proof for the correctness of some computation.
@@ -147,8 +147,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     }
 
     fn try_trivial<RNG: Rng>(&self, rng: &mut RNG) -> Result<Proof<C, R>> {
-        use internal_circuits::stages;
-
         // Application rx polynomial
         let application_rx = dummy::Circuit
             .rx((), self.circuit_mesh.get_key())
@@ -193,15 +191,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         };
 
         // Preamble witness with zero output headers and dummy proof references.
-        let preamble_witness = preamble::Witness::new(
+        let preamble_witness = stages::native::preamble::Witness::new(
             &dummy_proof,
             &dummy_proof,
             [C::CircuitField::ZERO; HEADER_SIZE],
             [C::CircuitField::ZERO; HEADER_SIZE],
         );
 
-        let native_preamble_rx = preamble::Stage::<C, R, HEADER_SIZE>::rx(&preamble_witness)
-            .expect("preamble rx should not fail");
+        let native_preamble_rx =
+            stages::native::preamble::Stage::<C, R, HEADER_SIZE>::rx(&preamble_witness)
+                .expect("preamble rx should not fail");
         let native_preamble_blind = C::CircuitField::random(&mut *rng);
         let native_preamble_commitment =
             native_preamble_rx.commit(self.params.host_generators(), native_preamble_blind);
@@ -261,7 +260,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         })?;
 
         // Create the unified instance
-        let unified_instance = internal_circuits::unified::Instance {
+        let unified_instance = unified::Instance {
             nested_preamble_commitment,
             w,
             c,

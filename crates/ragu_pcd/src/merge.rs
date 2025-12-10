@@ -11,7 +11,7 @@ use rand::Rng;
 use crate::{
     Application,
     components::fold_revdot::{self, ErrorTermsLen},
-    internal_circuits::{self, NUM_REVDOT_CLAIMS, stages::native::preamble},
+    internal_circuits::{self, NUM_REVDOT_CLAIMS, stages, unified},
     proof::{ApplicationProof, InternalCircuits, Pcd, PreambleProof, Proof},
     step::{Step, adapter::Adapter},
 };
@@ -45,10 +45,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_generators = self.params.nested_generators();
 
         // Create preamble witness from PCDs.
-        let preamble_witness = preamble::Witness::from_pcds(&left, &right)?;
+        let preamble_witness = stages::native::preamble::Witness::from_pcds(&left, &right)?;
 
         // Compute native preamble
-        let native_preamble_rx = preamble::Stage::<C, R, HEADER_SIZE>::rx(&preamble_witness)?;
+        let native_preamble_rx =
+            stages::native::preamble::Stage::<C, R, HEADER_SIZE>::rx(&preamble_witness)?;
         let native_preamble_blind = C::CircuitField::random(&mut *rng);
         let native_preamble_commitment =
             native_preamble_rx.commit(host_generators, native_preamble_blind);
@@ -63,9 +64,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         // Compute nested preamble
         let nested_preamble_rx =
-            internal_circuits::stages::nested::preamble::Stage::<C::HostCurve, R, 5>::rx(
-                &nested_preamble_points,
-            )?;
+            stages::nested::preamble::Stage::<C::HostCurve, R, 5>::rx(&nested_preamble_points)?;
         let nested_preamble_blind: <C as Cycle>::ScalarField = C::ScalarField::random(&mut *rng);
         let nested_preamble_commitment =
             nested_preamble_rx.commit(nested_generators, nested_preamble_blind);
@@ -111,7 +110,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             })?;
 
         // Create the unified instance.
-        let unified_instance = &internal_circuits::unified::Instance {
+        let unified_instance = &unified::Instance {
             nested_preamble_commitment,
             w,
             c,
