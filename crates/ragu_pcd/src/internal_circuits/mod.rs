@@ -11,7 +11,7 @@ pub mod dummy;
 pub mod stages;
 pub mod unified;
 
-// TODO: This should be derived from the actual number of circuits in the mesh.
+// TODO: Placeholder value for the number of revdot claims.
 pub const NUM_REVDOT_CLAIMS: usize = 3;
 
 #[derive(Clone, Copy, Debug)]

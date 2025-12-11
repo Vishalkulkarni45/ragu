@@ -452,6 +452,7 @@ mod tests {
 
         Ok(())
     }
+
     #[test]
     fn test_omega_key_uniqueness() {
         let max_circuits = 1024;
