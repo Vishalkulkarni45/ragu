@@ -9,7 +9,7 @@ Combining the power vector and vector reversal:
 $\rv{z}^{\mathbf{n:2n}}=(z^{2n-1},\ldots,z^n)$ and
 $\v{z^{2n:3n}}=(z^{2n},\ldots,z^{3n-1})$.
 
-**Userful Facts**:
+**Useful Facts**:
 A few arithmetic facts (assume all vectors have the same length):
 - $\dot{\v{a}\|\v{b}}{\v{c}\|\v{d}} = \dot{\v{a}}{\v{c}} + \dot{\v{b}}{\v{d}}$
 - $\alpha\cdot \dot{\v{a}}{\v{c}} + \beta\cdot \dot{\v{b}}{\v{c}} =

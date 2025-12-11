@@ -13,4 +13,5 @@
 \wit:\mathtt{w}
 \sample:\overset{\$}{\leftarrow}
 \endo:\underbar{#1}
+\iseq:\overset{?}{=}
 \com:\mathsf{Commit}
