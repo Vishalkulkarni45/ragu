@@ -19,9 +19,9 @@ pub const NUM_REVDOT_CLAIMS: usize = 3;
 #[repr(usize)]
 pub enum InternalCircuitIndex {
     DummyCircuit = 0,
-    ClaimStage = 1,
+    ClaimStaged = 1,
     ClaimCircuit = 2,
-    VStage = 3,
+    VStaged = 3,
     VCircuit = 4,
     PreambleStage = 5,
     QueryStage = 6,

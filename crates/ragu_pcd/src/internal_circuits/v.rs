@@ -19,7 +19,7 @@ use super::stages::native::{
 use super::unified::{self, OutputBuilder};
 
 pub use crate::internal_circuits::InternalCircuitIndex::VCircuit as CIRCUIT_ID;
-pub use crate::internal_circuits::InternalCircuitIndex::VStage as STAGED_ID;
+pub use crate::internal_circuits::InternalCircuitIndex::VStaged as STAGED_ID;
 
 pub struct Circuit<'params, C: Cycle, R, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize> {
     params: &'params C,
