@@ -148,17 +148,13 @@ impl<'a, 'dr, D: Driver<'dr>, R: Rank, Current: Stage<D::F, R>, Target: Stage<D:
     /// not compute the witness. Call [`StageGuard::unenforced`] or
     /// [`StageGuard::enforced`] on the returned guard to provide the witness
     /// and obtain the output gadget.
-    pub fn add_stage<Next: Stage<D::F, R, Parent = Current> + 'dr>(
+    pub fn configure_stage<Next: Stage<D::F, R, Parent = Current> + 'dr>(
         self,
+        stage: Next,
     ) -> Result<(
         StageGuard<'dr, D, R, Next>,
         StageBuilder<'a, 'dr, D, R, Next, Target>,
-    )>
-    where
-        Next: Default,
-    {
-        let stage = Next::default();
-
+    )> {
         // Invoke wireless emulator with dummy witness to get gadget structure.
         // The emulator never actually reads the witness values.
         let mut emulator = Emulator::<Wireless<Empty, D::F>>::wireless();
@@ -194,6 +190,20 @@ impl<'a, 'dr, D: Driver<'dr>, R: Rank, Current: Stage<D::F, R>, Target: Stage<D:
                 _marker: PhantomData,
             },
         ))
+    }
+
+    /// Add the next stage to the builder using [`Self::configure_stage`]
+    /// assuming the stage implements [`Default`].
+    pub fn add_stage<Next>(
+        self,
+    ) -> Result<(
+        StageGuard<'dr, D, R, Next>,
+        StageBuilder<'a, 'dr, D, R, Next, Target>,
+    )>
+    where
+        Next: Stage<D::F, R, Parent = Current> + Default + 'dr,
+    {
+        self.configure_stage(Next::default())
     }
 }
 
