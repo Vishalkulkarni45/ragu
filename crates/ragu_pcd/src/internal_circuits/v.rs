@@ -80,8 +80,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
         let (eval, builder) = builder.add_stage::<native_eval::Stage<C, R, HEADER_SIZE>>()?;
         let dr = builder.finish();
 
-        // TODO: Currently unused, we're missing alpha enforcement.
-        let _query = query.enforced(dr, witness.view().map(|w| w.query_witness))?;
+        let query = query.enforced(dr, witness.view().map(|w| w.query_witness))?;
         let eval = eval.enforced(dr, witness.view().map(|w| w.eval_witness))?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
@@ -91,8 +90,27 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             .nested_f_commitment
             .get(dr, unified_instance)?;
 
-        // TODO: Derive mu, nu challenges.
-        // TODO: Derive x challenge.
+        // Derive (mu, nu) = H(nested_error_commitment).
+        let (mu, nu) = {
+            let nested_error_commitment = unified_output
+                .nested_error_commitment
+                .get(dr, unified_instance)?;
+            transcript::derive_mu_nu::<_, C>(dr, &nested_error_commitment, self.params)?
+        };
+
+        // Derive x = H(nu, nested_ab_commitment) and enforce query stage's x matches.
+        let x = {
+            let nested_ab_commitment = unified_output
+                .nested_ab_commitment
+                .get(dr, unified_instance)?;
+            let x = transcript::derive_x::<_, C>(dr, &nu, &nested_ab_commitment, self.params)?;
+            x.enforce_equal(dr, &query.x)?;
+            x
+        };
+
+        unified_output.mu.set(mu);
+        unified_output.nu.set(nu);
+        unified_output.x.set(x);
 
         // Derive alpha challenge.
         let alpha = {
@@ -113,7 +131,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             unified_output.u.set(u);
         }
 
-        // TODO: Derive beta challenge.
+        // Derive beta = H(nested_eval_commitment).
+        {
+            let nested_eval_commitment = unified_output
+                .nested_eval_commitment
+                .get(dr, unified_instance)?;
+            let beta = transcript::derive_beta::<_, C>(dr, &nested_eval_commitment, self.params)?;
+            unified_output.beta.set(beta);
+        }
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

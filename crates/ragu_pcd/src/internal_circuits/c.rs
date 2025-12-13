@@ -9,21 +9,15 @@ use ragu_core::{
     gadgets::GadgetKind,
     maybe::Maybe,
 };
-use ragu_primitives::{
-    Element,
-    vec::{CollectFixed, FixedVec, Len},
-};
+use ragu_primitives::{Element, vec::CollectFixed};
 
 use core::marker::PhantomData;
 
 use super::{
-    stages::native::preamble,
+    stages::native::{error as native_error, preamble as native_preamble},
     unified::{self, OutputBuilder},
 };
-use crate::components::{
-    fold_revdot::{self, ErrorTermsLen},
-    root_of_unity::enforce_root_of_unity,
-};
+use crate::components::{fold_revdot, root_of_unity::enforce_root_of_unity};
 
 pub use crate::internal_circuits::InternalCircuitIndex::ClaimCircuit as CIRCUIT_ID;
 pub use crate::internal_circuits::InternalCircuitIndex::ClaimStaged as STAGED_ID;
@@ -49,14 +43,14 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAI
 pub struct Witness<'a, C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize>
 {
     pub unified_instance: &'a unified::Instance<C>,
-    pub preamble_witness: &'a preamble::Witness<'a, C, R, HEADER_SIZE>,
-    pub error_terms: FixedVec<C::CircuitField, ErrorTermsLen<NUM_REVDOT_CLAIMS>>,
+    pub preamble_witness: &'a native_preamble::Witness<'a, C, R, HEADER_SIZE>,
+    pub error_witness: &'a native_error::Witness<C, NUM_REVDOT_CLAIMS>,
 }
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize>
     StagedCircuit<C::CircuitField, R> for Circuit<'_, C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>
 {
-    type Final = preamble::Stage<C, R, HEADER_SIZE>;
+    type Final = native_error::Stage<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>;
 
     type Instance<'source> = &'source unified::Instance<C>;
     type Witness<'source> = Witness<'source, C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>;
@@ -83,11 +77,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
         Self: 'dr,
     {
         let (preamble_guard, builder) =
-            builder.add_stage::<preamble::Stage<C, R, HEADER_SIZE>>()?;
+            builder.add_stage::<native_preamble::Stage<C, R, HEADER_SIZE>>()?;
+        let (error_guard, builder) =
+            builder.add_stage::<native_error::Stage<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>>()?;
         let dr = builder.finish();
 
         let preamble_output =
             preamble_guard.enforced(dr, witness.view().map(|w| w.preamble_witness))?;
+        let error_output = error_guard.enforced(dr, witness.view().map(|w| w.error_witness))?;
 
         // Check that circuit IDs are valid domain elements.
         enforce_root_of_unity(
@@ -121,6 +118,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             unified_output.w.set(w);
         }
 
+        // TODO: Computation of (y, z)
+
         // TODO: Call Horner's method routine to evaluate k(Y) polynomials at y.
 
         // Compute c, the folded revdot product claim.
@@ -128,11 +127,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             // Grab mu and nu from the unified instance
             let mu = unified_output.mu.get(dr, unified_instance)?;
             let nu = unified_output.nu.get(dr, unified_instance)?;
-
-            // Allocate error terms.
-            let error_terms = ErrorTermsLen::<NUM_REVDOT_CLAIMS>::range()
-                .map(|i| Element::alloc(dr, witness.view().map(|w| w.error_terms[i])))
-                .try_collect_fixed()?;
 
             // TODO: Use zeros for ky_values for now.
             let ky_values = (0..NUM_REVDOT_CLAIMS)
@@ -143,11 +137,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
                 dr,
                 &mu,
                 &nu,
-                &error_terms,
+                &error_output.error_terms,
                 &ky_values,
             )?;
             unified_output.c.set(c);
         }
+
+        // TODO: Error stage's nested_s_doubleprime_commitment must equal the one in unified output
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

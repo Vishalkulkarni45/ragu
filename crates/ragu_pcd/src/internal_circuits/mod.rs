@@ -24,13 +24,14 @@ pub enum InternalCircuitIndex {
     VStaged = 3,
     VCircuit = 4,
     PreambleStage = 5,
-    QueryStage = 6,
-    EvalStage = 7,
+    ErrorStage = 6,
+    QueryStage = 7,
+    EvalStage = 8,
 }
 
 /// The number of internal circuits registered by [`register_all`],
 /// and the number of variants in [`InternalCircuitIndex`].
-pub const NUM_INTERNAL_CIRCUITS: usize = 8;
+pub const NUM_INTERNAL_CIRCUITS: usize = 9;
 
 impl InternalCircuitIndex {
     pub fn circuit_index(self, num_application_steps: usize) -> CircuitIndex {
@@ -61,6 +62,12 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
     let mesh = mesh.register_circuit_object(
         stages::native::preamble::Stage::<C, R, HEADER_SIZE>::into_object()?,
     )?;
+    let mesh = mesh.register_circuit_object(stages::native::error::Stage::<
+        C,
+        R,
+        HEADER_SIZE,
+        NUM_NATIVE_REVDOT_CLAIMS,
+    >::into_object()?)?;
     let mesh = mesh.register_circuit_object(
         stages::native::query::Stage::<C, R, HEADER_SIZE>::into_object()?,
     )?;

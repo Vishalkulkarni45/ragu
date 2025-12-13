@@ -108,12 +108,15 @@ macro_rules! define_nested_multi_point_stage {
 
 pub mod nested {
     define_nested_multi_point_stage!(preamble, parent = ());
+    define_nested_point_stage!(error, parent = ());
+    define_nested_multi_point_stage!(ab, parent = ());
     define_nested_point_stage!(query, parent = ());
     define_nested_point_stage!(f, parent = ());
     define_nested_point_stage!(eval, parent = ());
 }
 
 pub mod native {
+    pub mod error;
     pub mod eval;
     pub mod preamble;
     pub mod query;

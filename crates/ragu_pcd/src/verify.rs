@@ -42,6 +42,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::stages::native::preamble::STAGING_ID,
         );
 
+        // Error stage verification.
+        let error_valid = verifier.check_stage(
+            &pcd.proof.error.native_error_rx,
+            internal_circuits::stages::native::error::STAGING_ID,
+        );
+
         // Query verification.
         let query_valid = verifier.check_stage(
             &pcd.proof.query.native_query_rx,
@@ -66,17 +72,23 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::v::STAGED_ID,
         );
 
+        // TODO: Missing fields: nested_s_prime_commitment, y, z,
+        // nested_s_doubleprime_commitment, nested_s_commitment
         let unified_instance = internal_circuits::unified::Instance {
             nested_preamble_commitment: pcd.proof.preamble.nested_preamble_commitment,
             w: pcd.proof.internal_circuits.w,
-            c: pcd.proof.internal_circuits.c,
+            nested_error_commitment: pcd.proof.error.nested_error_commitment,
             mu: pcd.proof.internal_circuits.mu,
             nu: pcd.proof.internal_circuits.nu,
+            c: pcd.proof.internal_circuits.c,
+            nested_ab_commitment: pcd.proof.ab.nested_ab_commitment,
+            x: pcd.proof.internal_circuits.x,
             nested_query_commitment: pcd.proof.query.nested_query_commitment,
             alpha: pcd.proof.internal_circuits.alpha,
             nested_f_commitment: pcd.proof.f.nested_f_commitment,
             u: pcd.proof.internal_circuits.u,
             nested_eval_commitment: pcd.proof.eval.nested_eval_commitment,
+            beta: pcd.proof.internal_circuits.beta,
         };
 
         // Compute unified k(Y) once for both C and V circuits.
@@ -84,13 +96,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             let stub = StubUnified::<C>::new();
             stub.ky(&unified_instance)?
         };
-        use ff::Field;
-        assert!(unified_ky[1] == C::CircuitField::ZERO);
 
         // C circuit verification with ky.
-        // C's final stage is preamble, so combine preamble_rx with c_rx.
+        // C's final stage is error, so combine preamble_rx + error_rx with c_rx.
         let c_circuit_valid = {
             let mut c_combined_rx = pcd.proof.preamble.native_preamble_rx.clone();
+            c_combined_rx.add_assign(&pcd.proof.error.native_error_rx);
             c_combined_rx.add_assign(&pcd.proof.internal_circuits.c_rx);
 
             verifier.check_internal_circuit(
@@ -138,6 +149,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         );
 
         Ok(preamble_valid
+            && error_valid
             && query_valid
             && eval_valid
             && c_stage_valid
