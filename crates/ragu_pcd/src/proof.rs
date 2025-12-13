@@ -112,11 +112,11 @@ pub(crate) struct ErrorProof<C: Cycle, R: Rank> {
 }
 
 pub(crate) struct ABProof<C: Cycle, R: Rank> {
-    pub(crate) a_rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) a: structured::Polynomial<C::CircuitField, R>,
     pub(crate) a_blind: C::CircuitField,
     pub(crate) a_commitment: C::HostCurve,
 
-    pub(crate) b_rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) b: structured::Polynomial<C::CircuitField, R>,
     pub(crate) b_blind: C::CircuitField,
     pub(crate) b_commitment: C::HostCurve,
 
@@ -182,10 +182,10 @@ impl<C: Cycle, R: Rank> Clone for ErrorProof<C, R> {
 impl<C: Cycle, R: Rank> Clone for ABProof<C, R> {
     fn clone(&self) -> Self {
         ABProof {
-            a_rx: self.a_rx.clone(),
+            a: self.a.clone(),
             a_blind: self.a_blind,
             a_commitment: self.a_commitment,
-            b_rx: self.b_rx.clone(),
+            b: self.b.clone(),
             b_blind: self.b_blind,
             b_commitment: self.b_commitment,
             nested_ab_rx: self.nested_ab_rx.clone(),
@@ -339,10 +339,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_error_commitment: self.params.nested_generators().g()[0],
             },
             ab: ABProof {
-                a_rx: structured::Polynomial::new(),
+                a: structured::Polynomial::new(),
                 a_blind: C::CircuitField::random(&mut *rng),
                 a_commitment: self.params.host_generators().g()[0],
-                b_rx: structured::Polynomial::new(),
+                b: structured::Polynomial::new(),
                 b_blind: C::CircuitField::random(&mut *rng),
                 b_commitment: self.params.host_generators().g()[0],
                 nested_ab_rx: structured::Polynomial::new(),
@@ -493,16 +493,17 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             .take())
         })?;
 
-        // Stubbed A/B polynomials
-        let a_rx = ragu_circuits::polynomials::structured::Polynomial::<C::CircuitField, R>::new();
+        // Compute the A/B polynomials (depend on mu, nu).
+        // TODO: For now, stub out fake A and B polynomials.
+        let a = ragu_circuits::polynomials::structured::Polynomial::<C::CircuitField, R>::new();
+        let b = ragu_circuits::polynomials::structured::Polynomial::<C::CircuitField, R>::new();
+
+        // Commit to A and B, then create the nested commitment.
         let a_blind = C::CircuitField::random(&mut *rng);
-        let a_commitment = a_rx.commit(self.params.host_generators(), a_blind);
-
-        let b_rx = ragu_circuits::polynomials::structured::Polynomial::<C::CircuitField, R>::new();
+        let a_commitment = a.commit(self.params.host_generators(), a_blind);
         let b_blind = C::CircuitField::random(&mut *rng);
-        let b_commitment = b_rx.commit(self.params.host_generators(), b_blind);
+        let b_commitment = b.commit(self.params.host_generators(), b_blind);
 
-        // Stubbed nested ab rx polynomial
         let nested_ab_rx =
             stages::nested::ab::Stage::<C::HostCurve, R, 2>::rx(&[a_commitment, b_commitment])?;
         let nested_ab_blind = C::ScalarField::random(&mut *rng);
@@ -581,14 +582,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             nested_eval_rx.commit(self.params.nested_generators(), nested_eval_blind);
 
         // Create unified instance and compute c_rx
+        // TODO: Missing fields: nested_s_prime_commitment, y, z,
+        // nested_s_doubleprime_commitment, nested_s_commitment, beta
         let unified_instance = internal_circuits::unified::Instance {
             nested_preamble_commitment,
-            nested_error_commitment,
-            nested_ab_commitment,
             w,
-            c,
+            nested_error_commitment,
             mu,
             nu,
+            c,
+            nested_ab_commitment,
             nested_query_commitment,
             alpha,
             nested_f_commitment,
@@ -645,10 +648,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_error_commitment,
             },
             ab: ABProof {
-                a_rx,
+                a,
                 a_blind,
                 a_commitment,
-                b_rx,
+                b,
                 b_blind,
                 b_commitment,
                 nested_ab_rx,

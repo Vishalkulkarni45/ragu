@@ -50,14 +50,21 @@ pub struct Output<'dr, D: Driver<'dr>, C: Cycle> {
     pub nested_eval_commitment: Point<'dr, D, C::NestedCurve>,
 }
 
+// TODO: Missing fields to add:
+//   - nested_s_prime_commitment: C::NestedCurve (after w)
+//   - y: C::CircuitField (after nested_s_prime_commitment)
+//   - z: C::CircuitField (after y)
+//   - nested_s_doubleprime_commitment: C::NestedCurve (after z, before nested_error_commitment)
+//   - nested_s_commitment: C::NestedCurve (after nested_ab_commitment, before nested_query_commitment)
+//   - beta: C::CircuitField (after nested_eval_commitment)
 pub struct Instance<C: Cycle> {
     pub nested_preamble_commitment: C::NestedCurve,
-    pub nested_error_commitment: C::NestedCurve,
-    pub nested_ab_commitment: C::NestedCurve,
     pub w: C::CircuitField,
-    pub c: C::CircuitField,
+    pub nested_error_commitment: C::NestedCurve,
     pub mu: C::CircuitField,
     pub nu: C::CircuitField,
+    pub c: C::CircuitField,
+    pub nested_ab_commitment: C::NestedCurve,
     pub nested_query_commitment: C::NestedCurve,
     pub alpha: C::CircuitField,
     pub nested_f_commitment: C::NestedCurve,
