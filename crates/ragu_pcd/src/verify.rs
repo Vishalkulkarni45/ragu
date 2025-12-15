@@ -3,10 +3,9 @@
 mod stub_step;
 mod stub_unified;
 
-use arithmetic::{Cycle, eval};
+use arithmetic::Cycle;
 use ff::PrimeField;
 use ragu_circuits::{
-    CircuitExt,
     mesh::{CircuitIndex, Mesh},
     polynomials::{Rank, structured},
 };
@@ -100,7 +99,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Compute unified k(Y) once for both C and V circuits.
         let unified_ky = {
             let stub = StubUnified::<C>::new();
-            stub.ky(&unified_instance)?
+            crate::components::ky::emulate(&stub, &unified_instance, verifier.y)?
         };
 
         // C circuit verification with ky.
@@ -113,7 +112,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             verifier.check_internal_circuit(
                 &c_combined_rx,
                 internal_circuits::c::CIRCUIT_ID,
-                &unified_ky,
+                unified_ky,
             )
         };
 
@@ -128,7 +127,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             verifier.check_internal_circuit(
                 &v_combined_rx,
                 internal_circuits::v::CIRCUIT_ID,
-                &unified_ky,
+                unified_ky,
             )
         };
 
@@ -145,13 +144,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let application_ky = {
             let adapter = Adapter::<C, StubStep<H>, R, HEADER_SIZE>::new(StubStep::new());
             let instance = (left_header, right_header, pcd.data.clone());
-            adapter.ky(instance)?
+            crate::components::ky::emulate(&adapter, instance, verifier.y)?
         };
 
         let application_valid = verifier.check_circuit(
             &pcd.proof.application.rx,
             pcd.proof.application.circuit_id,
-            &application_ky,
+            application_ky,
         );
 
         Ok(preamble_valid
@@ -209,7 +208,7 @@ impl<'a, F: PrimeField, R: Rank> Verifier<'a, F, R> {
         &self,
         rx: &structured::Polynomial<F, R>,
         internal_id: InternalCircuitIndex,
-        ky: &[F],
+        ky: F,
     ) -> bool {
         let circuit_id = internal_id.circuit_index(self.num_application_steps);
         self.check_circuit(rx, circuit_id, ky)
@@ -220,7 +219,7 @@ impl<'a, F: PrimeField, R: Rank> Verifier<'a, F, R> {
         &self,
         rx: &structured::Polynomial<F, R>,
         circuit_id: CircuitIndex,
-        ky: &[F],
+        ky: F,
     ) -> bool {
         let sy = self.circuit_mesh.circuit_y(circuit_id, self.y);
 
@@ -229,6 +228,6 @@ impl<'a, F: PrimeField, R: Rank> Verifier<'a, F, R> {
         rhs.add_assign(&sy);
         rhs.add_assign(&self.tz);
 
-        rx.revdot(&rhs) == eval(ky.iter(), self.y)
+        rx.revdot(&rhs) == ky
     }
 }
