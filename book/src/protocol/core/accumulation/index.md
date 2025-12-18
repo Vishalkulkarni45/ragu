@@ -110,8 +110,9 @@ group operations are native to the other curve's scalar field.
 This creates a ping-pong pattern. We alternate between two circuits—$CS^{(1)}$
 over field $\F_p$ and $CS^{(2)}$ over field $\F_q$—where commitments in one
 circuit's group $\G^{(1)}$ are accumulated in the other circuit, and vice versa.
-The state and accumulator become tuples: $z_i = (z_i^{(1)}, z_i^{(2)})$ and
-$\acc_i = (\acc_i^{(1)}, \acc_i^{(2)})$.
+The application state and accumulator become tuples: $z_i = (z_i^{(1)}, z_i^{(2)})$
+and $\acc_i = (\acc_i^{(1)}, \acc_i^{(2)})$. Furthermore, there is the NARK
+instance from the last step $\inst_i=(\inst_i^{(1)},\inst_i^{(2)})$.
 
 <p align="center">
   <img src="../../../assets/ivc_on_cycle.svg" alt="ivc_on_cycle_of_curves" />
@@ -119,31 +120,39 @@ $\acc_i = (\acc_i^{(1)}, \acc_i^{(2)})$.
 
 **Base Case**: $i=0$, $z_0$ set to the application init state,
 accumulators are set to a trivial value $\acc_0:=\acc_\bot$, the previous step
-instance $\inst_0^{(2)}:=\inst_\bot$ is set to a trivially satisfying instance
+instance $\inst_0:=\inst_\bot$ is set to a trivially satisfying instance
 (similarly for its respective witness maintained by the prover).
 
 Each future IVC step now consists of two halves working in tandem:
 
-**Primary circuit** $CS^{(1)}$:
-- Advances application state $z_i^{(1)} \to z_{i+1}^{(1)}$
-- Folds the previous step's secondary instance $\inst_i^{(2)}$ into accumulator
-  $\acc_i^{(2)} \to \acc_{i+1}^{(2)}$
-  - **base**: if $i=0$, directly set $\acc_{i+1}^{(2)}:=\acc_0^{(2)}=\acc_\bot$
-    without any folding
-- Produces new instance $\inst_{i+1}^{(1)}$ to be folded in the next half
-- Enforces [deferred operations](../../prelim/nested_commitment.md#deferreds) in
-  $CS^{(2)}$ from the last step (its group operations are native here), and 
-  defers its own group operations to $CS^{(2)}$
+**Primary circuits** $CS^{(1)}$:
+- **App Circuit**: Advances application state $z_i^{(1)} \to z_{i+1}^{(1)}$,
+  producing new NARK public instance $\inst_{app,i+1}^{(1)}$
+- **Merge Circuit**: Folds (relevant part of) the previous step's instance into
+  the accumulator
+  - folds scalars in instances $\inst_{app,i+1}^{(1)}$ and $\inst_{merge,i}^{(1)}$
+    into accumulator $\acc_i^{(1)}$ 
+  - folds groups in instances $\inst_i^{(2)}=(\inst_{app,i}^{(2)},\inst_{merge,i}^{(2)})$
+    into accumulator $\acc_i^{(2)}$
+  - enforces [deferred operations](../../prelim/nested_commitment.md#deferreds)
+    captured in $\inst_i^{(2)}$ from $CS^{(2)}$ of the last step (whose group
+    operations are native here)
+  - produces a new NARK instance $\inst_{i+1}^{(1)}$ to be (partially) folded in
+    the second half
 
-**Secondary circuit** $CS^{(2)}$:
-- Advances application state $z_i^{(2)} \to z_{i+1}^{(2)}$
-- Folds the primary instance $\inst_{i+1}^{(1)}$ into accumulator
-  $\acc_i^{(1)} \to \acc_{i+1}^{(1)}$
-  - **base**: if $i=0$, directly set $\acc_{i+1}^{(1)}:=\inst_0^{(1)}$ without
-    any folding
-- Produces new instance $\inst_{i+1}^{(2)}$ for the next step
-- Enforces deferred operations from $CS^{(1)}$ (in the same step) and defer group
-  operations to $CS^{(1)}$ for the next step
+**Secondary circuits** $CS^{(2)}$:
+- **App Circuit**: Advances application state $z_i^{(2)} \to z_{i+1}^{(2)}$,
+  producing new NARK public instance $\inst_{app,i+1}^{(2)}$
+- **Merge Circuit**: Folds (relevant part of) the current step's instance into
+  the accumulator
+  - folds scalars in instances $\inst_{app,i+1}^{(2)}$ and $\inst_{merge,i+1}^{(2)}$
+    into accumulator $\acc_i^{(2)}$ (further update it)
+  - folds groups in instances $\inst_{i+1}^{(1)}=(\inst_{app,i+1}^{(1)},\inst_{merge,i+1}^{(1)})$
+    into accumulator $\acc_i^{(1)}$ (further update it)
+  - enforces deferred operations captured in $\inst_{i+1}^{(1)}$ from $CS^{(1)}$
+    of _the same step_
+  - produces a new NARK instance $\inst_{i+1}^{(2)}$ to be (partially) folded in
+    the primary half of _the next step_
 
 Both circuits run accumulation verifiers $\mathsf{Acc.V}$ for the [3
 subprotocols inside the NARK](../nark.md#nark) to verifiably update their
@@ -151,11 +160,22 @@ respective accumulators. The result is efficient recursion: each circuit only
 performs native arithmetic, while the non-native work is deferred to its
 counterpart on the cycle.[^ivc-curve-diagram]
 
-[^ivc-curve-diagram]: The IVC on a curve cycle diagram is heavily based on the
+[^ivc-curve-diagram]: The IVC on a curve cycle diagram is inspired by the
 [[NBS23] paper](https://eprint.iacr.org/2023/969) and [Wilson Nguyen's
 talk](https://youtu.be/l-F5ykQQ4qw). The diagram presents the IVC computation
 chain from the _verifier's perspective_ and omits auxiliary advice and witness
 parts of the NARK instance and accumulator managed by the prover.
+
+```admonish note title="Split-up of the folding work"
+The accumulator for one curve contains both group and field elements. E.g.,
+$\acc^{(1)}=(S,\bar{A},\bar{B},c,\bar{P},u,v)$ where
+$S,\bar{A},\bar{B},P\in\G^{(1)}$ and $c,u,v\in\F^{(1)}\equiv\F_p$.
+To avoid all non-native arithemtic, we partially fold scalars (i.e. $c,v$)
+directly in $CS_{merge}^{(1)}$ and defer the folding of commitments (i.e.
+$\bar{A},\bar{B},\bar{P}$) to $CS_{merge}^{(2)}$.
+Additionally, scalars in the NARK instance for $CS_{merge,i}^{(1)}$ can only be
+folded during the next step in $CS_{merge,i+1}^{(1)}$.
+```
 
 ## 2-arity PCD
 
@@ -195,7 +215,9 @@ symmetrically):
 
 The primary circuit now:
 - Runs the binary step function: $F_i(z_{i,L}^{(1)}, z_{i,R}^{(1)}) = z_{i+1}^{(1)}$
-- Folds both parent accumulators: $\acc_{i,L}^{(2)}, \acc_{i,R}^{(2)} \to \acc_{i+1}^{(2)}$
+- Folds both left and right parent accumulators $\acc_{i,L}, \acc_{i,R}$ and
+  $\F_p$-native parts of both prior step NARK instances
+  $\inst_{i,L},\inst_{i,R}$ into $\acc'_{i+1}$
 - Updates the init state root with left and right roots
 - Produces instance $\inst_{i+1}^{(1)}$ for the secondary circuit
 
@@ -204,8 +226,9 @@ The secondary circuit performs the symmetric operations for the $(2)$ components
 This establishes the general syntax for all split-accumulation schemes in Ragu:
 
 - **Accumulation Prover**:
-  $\mathsf{Acc.P}(\pi_i, \set{\acc_i}, \aux_i) \to (\acc_{i+1}, \pf_{i+1})$
+  $\mathsf{Acc.P}(\set{\pi_i}, \set{\acc_i}, \aux_i) \to (\acc_{i+1}, \pf_{i+1})$
 - **Accumulation Verifier**:
-  $\mathsf{Acc.V}(\pi_i.\inst, \set{\acc_i.\inst}, \acc_{i+1}.\inst, \pf_{i+1}) \to \{0,1\}$
+  $\mathsf{Acc.V}(\set{\pi_i.\inst}, \set{\acc_i.\inst}, \acc_{i+1}.\inst, \pf_{i+1}) \to \{0,1\}$
 
-where $\set{\acc_i}$ denotes the set of parent accumulators being folded.
+where $\set{\acc_i}$ denotes the set of parent accumulators being folded; and
+$\set{\pi_i}$ denotes the relevant set of NARK instances from the previous steps.
