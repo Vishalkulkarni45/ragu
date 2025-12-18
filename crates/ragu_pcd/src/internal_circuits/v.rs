@@ -16,13 +16,13 @@ use super::{
     stages::native::{eval as native_eval, preamble as native_preamble, query as native_query},
     unified::{self, OutputBuilder},
 };
-use crate::components::{fold_revdot::Parameters, transcript};
+use crate::components::fold_revdot::Parameters;
 
 pub use crate::internal_circuits::InternalCircuitIndex::VCircuit as CIRCUIT_ID;
 pub use crate::internal_circuits::InternalCircuitIndex::VStaged as STAGED_ID;
 
 pub struct Circuit<'params, C: Cycle, R, const HEADER_SIZE: usize, P: Parameters> {
-    params: &'params C,
+    _params: &'params C,
     _marker: PhantomData<(C, R, P)>,
 }
 
@@ -31,7 +31,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters>
 {
     pub fn new(params: &'params C) -> Staged<C::CircuitField, R, Self> {
         Staged::new(Circuit {
-            params,
+            _params: params,
             _marker: PhantomData,
         })
     }
@@ -86,57 +86,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> StagedCircuit<C
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
 
-        let nested_f_commitment = unified_output
-            .nested_f_commitment
-            .get(dr, unified_instance)?;
+        // Get x from unified instance (derived by hashes_2 circuit) and enforce equality.
+        let x = unified_output.x.get(dr, unified_instance)?;
+        x.enforce_equal(dr, &query.x)?;
 
-        // Get (mu, nu, mu', nu') from unified instance (derived by c circuit from error commitments).
-        let _mu = unified_output.mu.get(dr, unified_instance)?;
-        let _nu = unified_output.nu.get(dr, unified_instance)?;
-        let _mu_prime = unified_output.mu_prime.get(dr, unified_instance)?;
-        let nu_prime = unified_output.nu_prime.get(dr, unified_instance)?;
+        // Get u from unified instance (derived by hashes_2 circuit) and enforce equality.
+        let u = unified_output.u.get(dr, unified_instance)?;
+        u.enforce_equal(dr, &eval.u)?;
 
-        // Derive x = H(nu', nested_ab_commitment) and enforce query stage's x matches.
-        let x = {
-            let nested_ab_commitment = unified_output
-                .nested_ab_commitment
-                .get(dr, unified_instance)?;
-            let x =
-                transcript::derive_x::<_, C>(dr, &nu_prime, &nested_ab_commitment, self.params)?;
-            x.enforce_equal(dr, &query.x)?;
-            x
-        };
-
-        unified_output.x.set(x.clone());
-
-        // Derive alpha challenge.
-        let alpha = {
-            let nested_query_commitment = unified_output
-                .nested_query_commitment
-                .get(dr, unified_instance)?;
-            transcript::derive_alpha::<_, C>(dr, &nested_query_commitment, self.params)?
-        };
-        unified_output.alpha.set(alpha.clone());
-
-        // Derive u challenge.
-        {
-            let u = transcript::derive_u::<_, C>(dr, &alpha, &nested_f_commitment, self.params)?;
-
-            // Eval stage's u must equal u.
-            u.enforce_equal(dr, &eval.u)?;
-
-            unified_output.u.set(u);
-        }
-
-        // Derive beta = H(nested_eval_commitment).
-        {
-            let nested_eval_commitment = unified_output
-                .nested_eval_commitment
-                .get(dr, unified_instance)?;
-            let beta = transcript::derive_beta::<_, C>(dr, &nested_eval_commitment, self.params)?;
-            unified_output.beta.set(beta);
-        }
-
+        // Get z from unified instance (derived by hashes_1 circuit) for txz computation.
         // TODO: what to do with txz? launder out as aux data?
         let z = unified_output.z.get(dr, unified_instance)?;
         let evaluate_txz = Evaluate::new(R::RANK);

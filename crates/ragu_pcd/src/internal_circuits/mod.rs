@@ -8,6 +8,8 @@ use ragu_core::Result;
 
 pub mod c;
 pub mod dummy;
+pub mod hashes_1;
+pub mod hashes_2;
 pub mod stages;
 pub mod unified;
 pub mod v;
@@ -18,20 +20,22 @@ pub use crate::components::fold_revdot::NativeParameters;
 #[repr(usize)]
 pub enum InternalCircuitIndex {
     DummyCircuit = 0,
-    ClaimStaged = 1,
-    ClaimCircuit = 2,
-    VStaged = 3,
-    VCircuit = 4,
-    PreambleStage = 5,
-    ErrorMStage = 6,
-    ErrorNStage = 7,
-    QueryStage = 8,
-    EvalStage = 9,
+    Hashes1Circuit = 1,
+    Hashes2Circuit = 2,
+    ClaimStaged = 3,
+    ClaimCircuit = 4,
+    VStaged = 5,
+    VCircuit = 6,
+    PreambleStage = 7,
+    ErrorMStage = 8,
+    ErrorNStage = 9,
+    QueryStage = 10,
+    EvalStage = 11,
 }
 
 /// The number of internal circuits registered by [`register_all`],
 /// and the number of variants in [`InternalCircuitIndex`].
-pub const NUM_INTERNAL_CIRCUITS: usize = 10;
+pub const NUM_INTERNAL_CIRCUITS: usize = 12;
 
 impl InternalCircuitIndex {
     pub fn circuit_index(self, num_application_steps: usize) -> CircuitIndex {
@@ -47,6 +51,8 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
     let initial_num_circuits = mesh.num_circuits();
 
     let mesh = mesh.register_circuit(dummy::Circuit)?;
+    let mesh = mesh.register_circuit(hashes_1::Circuit::<C>::new(params))?;
+    let mesh = mesh.register_circuit(hashes_2::Circuit::<C>::new(params))?;
     let mesh = {
         let c = c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(params, log2_circuits);
         mesh.register_circuit_object(c.final_into_object()?)?

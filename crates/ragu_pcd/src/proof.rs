@@ -61,7 +61,7 @@ pub(crate) struct PreambleProof<C: Cycle, R: Rank> {
     pub(crate) nested_preamble_commitment: C::NestedCurve,
 }
 
-/// Fiat-Shamir challenges and C/V circuit polynomials.
+/// Fiat-Shamir challenges and C/V/hash circuit polynomials.
 pub(crate) struct InternalCircuits<C: Cycle, R: Rank> {
     pub(crate) w: C::CircuitField,
     pub(crate) y: C::CircuitField,
@@ -73,6 +73,12 @@ pub(crate) struct InternalCircuits<C: Cycle, R: Rank> {
     pub(crate) v_rx: structured::Polynomial<C::CircuitField, R>,
     pub(crate) v_rx_blind: C::CircuitField,
     pub(crate) v_rx_commitment: C::HostCurve,
+    pub(crate) hashes_1_rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) hashes_1_rx_blind: C::CircuitField,
+    pub(crate) hashes_1_rx_commitment: C::HostCurve,
+    pub(crate) hashes_2_rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) hashes_2_rx_blind: C::CircuitField,
+    pub(crate) hashes_2_rx_commitment: C::HostCurve,
     pub(crate) mu: C::CircuitField,
     pub(crate) nu: C::CircuitField,
     pub(crate) mu_prime: C::CircuitField,
@@ -309,6 +315,12 @@ impl<C: Cycle, R: Rank> Clone for InternalCircuits<C, R> {
             v_rx: self.v_rx.clone(),
             v_rx_blind: self.v_rx_blind,
             v_rx_commitment: self.v_rx_commitment,
+            hashes_1_rx: self.hashes_1_rx.clone(),
+            hashes_1_rx_blind: self.hashes_1_rx_blind,
+            hashes_1_rx_commitment: self.hashes_1_rx_commitment,
+            hashes_2_rx: self.hashes_2_rx.clone(),
+            hashes_2_rx_blind: self.hashes_2_rx_blind,
+            hashes_2_rx_commitment: self.hashes_2_rx_commitment,
             mu: self.mu,
             nu: self.nu,
             mu_prime: self.mu_prime,
@@ -423,6 +435,24 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let v_rx_dummy_commitment =
             v_rx_dummy_rx.commit(self.params.host_generators(), v_rx_dummy_blind);
 
+        // Dummy hashes_1_rx commitment
+        let hashes_1_rx_dummy_rx = dummy::Circuit
+            .rx((), self.circuit_mesh.get_key())
+            .expect("should not fail")
+            .0;
+        let hashes_1_rx_dummy_blind = C::CircuitField::random(&mut *rng);
+        let hashes_1_rx_dummy_commitment =
+            hashes_1_rx_dummy_rx.commit(self.params.host_generators(), hashes_1_rx_dummy_blind);
+
+        // Dummy hashes_2_rx commitment
+        let hashes_2_rx_dummy_rx = dummy::Circuit
+            .rx((), self.circuit_mesh.get_key())
+            .expect("should not fail")
+            .0;
+        let hashes_2_rx_dummy_blind = C::CircuitField::random(&mut *rng);
+        let hashes_2_rx_dummy_commitment =
+            hashes_2_rx_dummy_rx.commit(self.params.host_generators(), hashes_2_rx_dummy_blind);
+
         // Create a dummy proof to use for preamble witness.
         // The preamble witness needs proof references, but we're creating a trivial proof
         // from scratch, so we construct a dummy with placeholder values.
@@ -494,6 +524,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 v_rx: v_rx_dummy_rx.clone(),
                 v_rx_blind: v_rx_dummy_blind,
                 v_rx_commitment: v_rx_dummy_commitment,
+                hashes_1_rx: hashes_1_rx_dummy_rx.clone(),
+                hashes_1_rx_blind: hashes_1_rx_dummy_blind,
+                hashes_1_rx_commitment: hashes_1_rx_dummy_commitment,
+                hashes_2_rx: hashes_2_rx_dummy_rx.clone(),
+                hashes_2_rx_blind: hashes_2_rx_dummy_blind,
+                hashes_2_rx_commitment: hashes_2_rx_dummy_commitment,
                 mu: C::CircuitField::random(&mut *rng),
                 nu: C::CircuitField::random(&mut *rng),
                 mu_prime: C::CircuitField::random(&mut *rng),
@@ -562,6 +598,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             // placeholder for left.v_rx_commitment and right.v_rx_commitment
             left_v: v_rx_dummy_commitment,
             right_v: v_rx_dummy_commitment,
+            // placeholder for hash circuit commitments
+            left_hashes_1: hashes_1_rx_dummy_commitment,
+            right_hashes_1: hashes_1_rx_dummy_commitment,
+            left_hashes_2: hashes_2_rx_dummy_commitment,
+            right_hashes_2: hashes_2_rx_dummy_commitment,
         };
 
         // Nested preamble rx polynomial
@@ -910,6 +951,30 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let v_rx_blind = C::CircuitField::random(&mut *rng);
         let v_rx_commitment = v_rx.commit(self.params.host_generators(), v_rx_blind);
 
+        // Compute hashes_1_rx using the hashes_1 circuit
+        let (hashes_1_rx, _) = internal_circuits::hashes_1::Circuit::<C>::new(self.params)
+            .rx::<R>(
+                internal_circuits::hashes_1::Witness {
+                    unified_instance: &unified_instance,
+                },
+                self.circuit_mesh.get_key(),
+            )?;
+        let hashes_1_rx_blind = C::CircuitField::random(&mut *rng);
+        let hashes_1_rx_commitment =
+            hashes_1_rx.commit(self.params.host_generators(), hashes_1_rx_blind);
+
+        // Compute hashes_2_rx using the hashes_2 circuit
+        let (hashes_2_rx, _) = internal_circuits::hashes_2::Circuit::<C>::new(self.params)
+            .rx::<R>(
+                internal_circuits::hashes_2::Witness {
+                    unified_instance: &unified_instance,
+                },
+                self.circuit_mesh.get_key(),
+            )?;
+        let hashes_2_rx_blind = C::CircuitField::random(&mut *rng);
+        let hashes_2_rx_commitment =
+            hashes_2_rx.commit(self.params.host_generators(), hashes_2_rx_blind);
+
         Ok(Proof {
             preamble: PreambleProof {
                 native_preamble_rx,
@@ -976,6 +1041,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 v_rx,
                 v_rx_blind,
                 v_rx_commitment,
+                hashes_1_rx,
+                hashes_1_rx_blind,
+                hashes_1_rx_commitment,
+                hashes_2_rx,
+                hashes_2_rx_blind,
+                hashes_2_rx_commitment,
                 mu,
                 nu,
                 mu_prime,

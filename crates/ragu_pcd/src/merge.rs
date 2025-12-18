@@ -82,6 +82,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_c: right.proof.internal_circuits.c_rx_commitment,
             left_v: left.proof.internal_circuits.v_rx_commitment,
             right_v: right.proof.internal_circuits.v_rx_commitment,
+            left_hashes_1: left.proof.internal_circuits.hashes_1_rx_commitment,
+            right_hashes_1: right.proof.internal_circuits.hashes_1_rx_commitment,
+            left_hashes_2: left.proof.internal_circuits.hashes_2_rx_commitment,
+            right_hashes_2: right.proof.internal_circuits.hashes_2_rx_commitment,
         };
 
         // Compute the stage polynomial that commits to the `C::HostCurve`
@@ -442,6 +446,24 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let v_rx_blind = C::CircuitField::random(&mut *rng);
         let v_rx_commitment = v_rx.commit(host_generators, v_rx_blind);
 
+        // Hashes_1 circuit.
+        let (hashes_1_rx, _) = internal_circuits::hashes_1::Circuit::<C>::new(self.params)
+            .rx::<R>(
+                internal_circuits::hashes_1::Witness { unified_instance },
+                self.circuit_mesh.get_key(),
+            )?;
+        let hashes_1_rx_blind = C::CircuitField::random(&mut *rng);
+        let hashes_1_rx_commitment = hashes_1_rx.commit(host_generators, hashes_1_rx_blind);
+
+        // Hashes_2 circuit.
+        let (hashes_2_rx, _) = internal_circuits::hashes_2::Circuit::<C>::new(self.params)
+            .rx::<R>(
+                internal_circuits::hashes_2::Witness { unified_instance },
+                self.circuit_mesh.get_key(),
+            )?;
+        let hashes_2_rx_blind = C::CircuitField::random(&mut *rng);
+        let hashes_2_rx_commitment = hashes_2_rx.commit(host_generators, hashes_2_rx_blind);
+
         // Application
         let application_circuit_id = S::INDEX.circuit_index(self.num_application_steps)?;
         let (application_rx, aux) = Adapter::<C, S, R, HEADER_SIZE>::new(step).rx::<R>(
@@ -545,6 +567,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     v_rx,
                     v_rx_commitment,
                     v_rx_blind,
+                    hashes_1_rx,
+                    hashes_1_rx_blind,
+                    hashes_1_rx_commitment,
+                    hashes_2_rx,
+                    hashes_2_rx_blind,
+                    hashes_2_rx_commitment,
                     mu,
                     nu,
                     mu_prime,

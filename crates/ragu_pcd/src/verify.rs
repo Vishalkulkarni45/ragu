@@ -136,6 +136,22 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             )
         };
 
+        // Hashes_1 circuit verification with ky.
+        // Hashes_1 has no stages, just the circuit itself.
+        let hashes_1_valid = verifier.check_internal_circuit(
+            &pcd.proof.internal_circuits.hashes_1_rx,
+            internal_circuits::hashes_1::CIRCUIT_ID,
+            unified_ky,
+        );
+
+        // Hashes_2 circuit verification with ky.
+        // Hashes_2 has no stages, just the circuit itself.
+        let hashes_2_valid = verifier.check_internal_circuit(
+            &pcd.proof.internal_circuits.hashes_2_rx,
+            internal_circuits::hashes_2::CIRCUIT_ID,
+            unified_ky,
+        );
+
         // Application verification
         let left_header = FixedVec::<_, ConstLen<HEADER_SIZE>>::try_from(
             pcd.proof.application.left_header.clone(),
@@ -167,6 +183,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             && v_stage_valid
             && c_circuit_valid
             && v_circuit_valid
+            && hashes_1_valid
+            && hashes_2_valid
             && application_valid)
     }
 }
