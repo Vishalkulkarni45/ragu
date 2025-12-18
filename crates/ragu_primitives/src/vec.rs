@@ -134,10 +134,20 @@ impl<T, L: Len> FixedVec<T, L> {
     where
         F: FnMut(usize) -> T,
     {
-        FixedVec {
-            v: L::range().map(f).collect(),
-            _marker: PhantomData,
-        }
+        L::range()
+            .map(f)
+            .collect_fixed()
+            .expect("length is correct")
+    }
+
+    /// Initialize a [`FixedVec`] using a closure that initializes each element
+    /// based on its index, returning an error instead if the closure ever
+    /// returns an error.
+    pub fn try_from_fn<F>(f: F) -> Result<Self>
+    where
+        F: FnMut(usize) -> Result<T>,
+    {
+        L::range().map(f).try_collect_fixed()
     }
 
     /// Consumes `self` and returns the inner vector, guaranteed to have length
