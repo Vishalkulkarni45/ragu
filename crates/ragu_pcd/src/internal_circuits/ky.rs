@@ -1,7 +1,10 @@
-//! Circuit for verifying layer 1 revdot folding (ky values computation).
+//! Circuit for computing the first layer of the revdot reductions, primarily to
+//! compute the $k(Y)$ evaluations and also to invoke the $n$ parallel size-$m$
+//! revdot folding operations.
 //!
-//! This circuit verifies that the collapsed values in error_n are correctly
-//! computed from error_m's error terms using the layer 1 folding process.
+//! This circuit is built using the preamble (for access to unified instances
+//! and so forth), error_m (for layer 1 error terms), and error_n (for layer 2
+//! error terms and collapsed values) native stages.
 
 use arithmetic::Cycle;
 use ragu_circuits::{
@@ -119,16 +122,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> StagedCircuit<C
         let mu = unified_output.mu.get(dr, unified_instance)?;
         let nu = unified_output.nu.get(dr, unified_instance)?;
 
-        // Verify layer 1 folding: for each i, compute_c_m(...) == error_n.collapsed[i]
-        {
-            // TODO: ky values are zeroes for now
-            let ky_values = FixedVec::from_fn(|_| Element::zero(dr));
+        // TODO: Compute ky values properly based on the preamble
+        let ky_values = FixedVec::from_fn(|_| Element::zero(dr));
 
-            for (i, error_terms_i) in error_m.error_terms.iter().enumerate() {
-                let expected =
-                    fold_revdot::compute_c_m::<_, P>(dr, &mu, &nu, error_terms_i, &ky_values)?;
-                expected.enforce_equal(dr, &error_n.collapsed[i])?;
-            }
+        for (i, error_terms) in error_m.error_terms.iter().enumerate() {
+            fold_revdot::compute_c_m::<_, P>(dr, &mu, &nu, error_terms, &ky_values)?
+                .enforce_equal(dr, &error_n.collapsed[i])?;
         }
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
