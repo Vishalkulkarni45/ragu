@@ -202,7 +202,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 let mu = Element::alloc(dr, mu)?;
                 let nu = Element::alloc(dr, nu)?;
                 // TODO: compute ky_values properly
-                let ky_values = FixedVec::from_fn(|_| Element::todo(dr));
+                let ky_values = FixedVec::from_fn(|_| Element::zero(dr));
 
                 FixedVec::try_from_fn(|i| {
                     let errors = FixedVec::try_from_fn(|j| {
