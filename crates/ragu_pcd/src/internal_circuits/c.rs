@@ -95,7 +95,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> StagedCircuit<C
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
 
-        // Get mu_prime, nu_prime from unified instance (derived by hashes_1 circuit).
+        // Get mu_prime, nu_prime from unified instance
         let mu_prime = unified_output.mu_prime.get(dr, unified_instance)?;
         let nu_prime = unified_output.nu_prime.get(dr, unified_instance)?;
 

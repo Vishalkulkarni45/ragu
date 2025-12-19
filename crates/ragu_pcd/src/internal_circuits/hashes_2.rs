@@ -101,11 +101,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> StagedCircuit<C
 
         // Resume sponge from saved state (error_m already absorbed in hashes_1)
         // and squeeze mu (first challenge from error_m absorption)
-        let (mu, mut sponge) = Sponge::resume_and_squeeze(
-            dr,
-            error_n.sponge_state.clone(),
-            self.params.circuit_poseidon(),
-        )?;
+        let (mu, mut sponge) =
+            Sponge::resume_and_squeeze(dr, error_n.sponge_state, self.params.circuit_poseidon())?;
         unified_output.mu.set(mu);
 
         // Squeeze nu (second challenge from error_m absorption)

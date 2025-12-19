@@ -75,14 +75,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
 
-        // Get x from unified instance (derived by hashes_2 circuit).
         let x = unified_output.x.get(dr, unified_instance)?;
-
-        // Get z from unified instance (derived by hashes_1 circuit) for txz computation.
-        // TODO: what to do with txz? launder out as aux data?
         let z = unified_output.z.get(dr, unified_instance)?;
-        let evaluate_txz = Evaluate::new(R::RANK);
-        let _txz = dr.routine(evaluate_txz, (x, z))?;
+
+        let _txz = dr.routine(Evaluate::new(R::RANK), (x, z))?;
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }
