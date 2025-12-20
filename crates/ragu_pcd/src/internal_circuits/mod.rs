@@ -72,7 +72,7 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
             .register_circuit(ky)?
     };
     let mesh = {
-        let c = c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(log2_circuits);
+        let c = c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new();
         mesh.register_circuit_object(c.final_into_object()?)?
             .register_circuit(c)?
     };

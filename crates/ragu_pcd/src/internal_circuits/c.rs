@@ -13,36 +13,28 @@ use ragu_core::{
 use core::marker::PhantomData;
 
 use super::{
-    stages::native::{
-        error_m as native_error_m, error_n as native_error_n, preamble as native_preamble,
-    },
+    stages::native::{error_m as native_error_m, error_n as native_error_n, preamble},
     unified::{self, OutputBuilder},
 };
-use crate::components::{
-    fold_revdot::{self, Parameters},
-    root_of_unity,
-};
+use crate::components::fold_revdot::{self, Parameters};
 
 pub use crate::internal_circuits::InternalCircuitIndex::ClaimCircuit as CIRCUIT_ID;
 pub use crate::internal_circuits::InternalCircuitIndex::ClaimStaged as STAGED_ID;
 
 pub struct Circuit<C: Cycle, R, const HEADER_SIZE: usize, P: Parameters> {
-    log2_circuits: u32,
     _marker: PhantomData<(C, R, P)>,
 }
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> Circuit<C, R, HEADER_SIZE, P> {
-    pub fn new(log2_circuits: u32) -> Staged<C::CircuitField, R, Self> {
+    pub fn new() -> Staged<C::CircuitField, R, Self> {
         Staged::new(Circuit {
-            log2_circuits,
             _marker: PhantomData,
         })
     }
 }
 
-pub struct Witness<'a, C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> {
+pub struct Witness<'a, C: Cycle, P: Parameters> {
     pub unified_instance: &'a unified::Instance<C>,
-    pub preamble_witness: &'a native_preamble::Witness<'a, C, R, HEADER_SIZE>,
     pub error_n_witness: &'a native_error_n::Witness<C, P>,
 }
 
@@ -52,7 +44,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> StagedCircuit<C
     type Final = native_error_n::Stage<C, R, HEADER_SIZE, P>;
 
     type Instance<'source> = &'source unified::Instance<C>;
-    type Witness<'source> = Witness<'source, C, R, HEADER_SIZE, P>;
+    type Witness<'source> = Witness<'source, C, P>;
     type Output = unified::InternalOutputKind<C>;
     type Aux<'source> = ();
 
@@ -78,19 +70,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> StagedCircuit<C
     where
         Self: 'dr,
     {
-        let (preamble, builder) =
-            builder.add_stage::<native_preamble::Stage<C, R, HEADER_SIZE>>()?;
+        let builder = builder.skip_stage::<preamble::Stage<C, R, HEADER_SIZE>>()?;
         let builder = builder.skip_stage::<native_error_m::Stage<C, R, HEADER_SIZE, P>>()?;
         let (error_n, builder) =
             builder.add_stage::<native_error_n::Stage<C, R, HEADER_SIZE, P>>()?;
         let dr = builder.finish();
 
-        let preamble = preamble.enforced(dr, witness.view().map(|w| w.preamble_witness))?;
         let error_n = error_n.enforced(dr, witness.view().map(|w| w.error_n_witness))?;
-
-        // Check that circuit IDs are valid domain elements.
-        root_of_unity::enforce(dr, preamble.left.circuit_id.clone(), self.log2_circuits)?;
-        root_of_unity::enforce(dr, preamble.right.circuit_id.clone(), self.log2_circuits)?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();

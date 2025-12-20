@@ -399,17 +399,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         };
 
         // C staged circuit.
-        let (c_rx, _) = internal_circuits::c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(
-            circuit_counts(self.num_application_steps).1,
-        )
-        .rx::<R>(
-            internal_circuits::c::Witness {
-                unified_instance,
-                preamble_witness: &preamble_witness,
-                error_n_witness: &error_n_witness,
-            },
-            self.circuit_mesh.get_key(),
-        )?;
+        let (c_rx, _) = internal_circuits::c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new()
+            .rx::<R>(
+                internal_circuits::c::Witness {
+                    unified_instance,
+                    error_n_witness: &error_n_witness,
+                },
+                self.circuit_mesh.get_key(),
+            )?;
         let c_rx_blind = C::CircuitField::random(&mut *rng);
         let c_rx_commitment = c_rx.commit(host_generators, c_rx_blind);
 

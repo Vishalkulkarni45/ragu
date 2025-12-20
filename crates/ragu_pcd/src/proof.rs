@@ -925,12 +925,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             beta,
         };
         let internal_circuit_c =
-            internal_circuits::c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(
-                circuit_counts(self.num_application_steps).1,
-            );
+            internal_circuits::c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new();
         let internal_circuit_c_witness = internal_circuits::c::Witness {
             unified_instance: &unified_instance,
-            preamble_witness: &preamble_witness,
             error_n_witness: &error_n_witness,
         };
 
