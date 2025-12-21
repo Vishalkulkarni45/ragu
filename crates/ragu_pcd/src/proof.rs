@@ -783,6 +783,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let error_n_witness = stages::native::error_n::Witness::<C, NativeParameters> {
             error_terms: FixedVec::from_fn(|_| C::CircuitField::todo()),
             collapsed,
+            left_app_ky: app_ky,
+            right_app_ky: app_ky,
+            left_unified_ky: unified_ky,
+            right_unified_ky: unified_ky,
             sponge_state_elements,
         };
         let native_error_n_rx =
@@ -1030,7 +1034,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::ky::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new();
         let internal_circuit_ky_witness = internal_circuits::ky::Witness {
             unified_instance: &unified_instance,
-            preamble_witness: &preamble_witness,
             error_m_witness: &error_m_witness,
             error_n_witness: &error_n_witness,
         };

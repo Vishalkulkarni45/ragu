@@ -33,6 +33,14 @@ pub struct Witness<C: Cycle, FP: fold_revdot::Parameters> {
     /// Collapsed values from layer 1 folding (N values).
     /// These are the outputs of N M-sized revdot reductions.
     pub collapsed: FixedVec<C::CircuitField, FP::N>,
+    /// k(y) for left application circuit (from left proof headers).
+    pub left_app_ky: C::CircuitField,
+    /// k(y) for right application circuit (from right proof headers).
+    pub right_app_ky: C::CircuitField,
+    /// k(y) for left unified circuit.
+    pub left_unified_ky: C::CircuitField,
+    /// k(y) for right unified circuit.
+    pub right_unified_ky: C::CircuitField,
     /// Sponge state elements saved after absorbing nested_error_m_commitment.
     /// Used to bridge the Fiat-Shamir transcript between hashes_1 and hashes_2.
     pub sponge_state_elements:
@@ -53,6 +61,18 @@ pub struct Output<
     /// Collapsed values from layer 1 folding (N values).
     #[ragu(gadget)]
     pub collapsed: FixedVec<Element<'dr, D>, FP::N>,
+    /// k(y) for left application circuit.
+    #[ragu(gadget)]
+    pub left_app_ky: Element<'dr, D>,
+    /// k(y) for right application circuit.
+    #[ragu(gadget)]
+    pub right_app_ky: Element<'dr, D>,
+    /// k(y) for left unified circuit.
+    #[ragu(gadget)]
+    pub left_unified_ky: Element<'dr, D>,
+    /// k(y) for right unified circuit.
+    #[ragu(gadget)]
+    pub right_unified_ky: Element<'dr, D>,
     /// Sponge state saved after absorbing nested_error_m_commitment.
     /// Used to bridge the Fiat-Shamir transcript between hashes_1 and hashes_2.
     #[ragu(gadget)]
@@ -73,9 +93,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
     type OutputKind = Kind![C::CircuitField; Output<'_, _, FP, C::CircuitPoseidon>];
 
     fn values() -> usize {
-        // N² - N error terms + N collapsed values + sponge state elements
+        // N² - N error terms + N collapsed values + 4 ky values + sponge state elements
         ErrorTermsLen::<FP::N>::len()
             + FP::N::len()
+            + 4
             + PoseidonStateLen::<C::CircuitField, C::CircuitPoseidon>::len()
     }
 
@@ -93,6 +114,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         let collapsed = FP::N::range()
             .map(|i| Element::alloc(dr, witness.view().map(|w| w.collapsed[i])))
             .try_collect_fixed()?;
+        let left_app_ky = Element::alloc(dr, witness.view().map(|w| w.left_app_ky))?;
+        let right_app_ky = Element::alloc(dr, witness.view().map(|w| w.right_app_ky))?;
+        let left_unified_ky = Element::alloc(dr, witness.view().map(|w| w.left_unified_ky))?;
+        let right_unified_ky = Element::alloc(dr, witness.view().map(|w| w.right_unified_ky))?;
         let sponge_state = SpongeState::from_elements(FixedVec::try_from_fn(|i| {
             Element::alloc(dr, witness.view().map(|w| w.sponge_state_elements[i]))
         })?);
@@ -100,6 +125,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         Ok(Output {
             error_terms,
             collapsed,
+            left_app_ky,
+            right_app_ky,
+            left_unified_ky,
+            right_unified_ky,
             sponge_state,
         })
     }

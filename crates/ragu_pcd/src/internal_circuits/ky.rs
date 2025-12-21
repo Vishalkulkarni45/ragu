@@ -1,10 +1,12 @@
-//! Circuit for computing the first layer of the revdot reductions, primarily to
-//! compute the $k(Y)$ evaluations and also to invoke the $n$ parallel size-$m$
-//! revdot folding operations.
+//! Circuit for verifying the first layer of the revdot reductions.
 //!
-//! This circuit is built using the preamble (for access to unified instances
-//! and so forth), error_m (for layer 1 error terms), and error_n (for layer 2
-//! error terms and collapsed values) native stages.
+//! This circuit verifies that the collapsed values in error_n match the result
+//! of folding the error_m terms with the k(y) values (which are computed and
+//! verified in hashes_1).
+//!
+//! This circuit is built using the preamble, error_m (for layer 1 error terms),
+//! and error_n (for layer 2 error terms, collapsed values, and k(y) values)
+//! native stages.
 
 use arithmetic::Cycle;
 use ragu_circuits::{
@@ -17,9 +19,8 @@ use ragu_core::{
     gadgets::{Gadget, GadgetKind},
     maybe::Maybe,
 };
-use ragu_primitives::{Element, GadgetExt, vec::FixedVec};
+use ragu_primitives::{Element, vec::FixedVec};
 
-use alloc::vec;
 use core::marker::PhantomData;
 
 use super::{
@@ -28,7 +29,7 @@ use super::{
     },
     unified::{self, OutputBuilder},
 };
-use crate::components::{fold_revdot, ky::Ky};
+use crate::components::fold_revdot;
 
 pub use crate::internal_circuits::InternalCircuitIndex::KyCircuit as CIRCUIT_ID;
 pub use crate::internal_circuits::InternalCircuitIndex::KyStaged as STAGED_ID;
@@ -50,11 +51,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
 }
 
 /// Witness for the ky circuit.
-pub struct Witness<'a, C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters> {
+pub struct Witness<'a, C: Cycle, FP: fold_revdot::Parameters> {
     /// The unified instance containing challenges.
     pub unified_instance: &'a unified::Instance<C>,
-    /// Witness for the preamble stage.
-    pub preamble_witness: &'a native_preamble::Witness<'a, C, R, HEADER_SIZE>,
     /// Witness for the error_m stage (layer 1 error terms).
     pub error_m_witness: &'a native_error_m::Witness<C, FP>,
     /// Witness for the error_n stage (layer 2 error terms + collapsed values).
@@ -67,7 +66,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
     type Final = native_error_n::Stage<C, R, HEADER_SIZE, FP>;
 
     type Instance<'source> = &'source unified::Instance<C>;
-    type Witness<'source> = Witness<'source, C, R, HEADER_SIZE, FP>;
+    type Witness<'source> = Witness<'source, C, FP>;
     type Output = unified::InternalOutputKind<C>;
     type Aux<'source> = ();
 
@@ -93,63 +92,30 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
     where
         Self: 'dr,
     {
-        let (preamble, builder) =
-            builder.add_stage::<native_preamble::Stage<C, R, HEADER_SIZE>>()?;
+        let builder = builder.skip_stage::<native_preamble::Stage<C, R, HEADER_SIZE>>()?;
         let (error_m, builder) =
             builder.add_stage::<native_error_m::Stage<C, R, HEADER_SIZE, FP>>()?;
         let (error_n, builder) =
             builder.add_stage::<native_error_n::Stage<C, R, HEADER_SIZE, FP>>()?;
         let dr = builder.finish();
-
-        let preamble = preamble.unenforced(dr, witness.view().map(|w| w.preamble_witness))?;
         let error_m = error_m.unenforced(dr, witness.view().map(|w| w.error_m_witness))?;
         let error_n = error_n.unenforced(dr, witness.view().map(|w| w.error_n_witness))?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
 
-        // Get y, mu, nu from unified instance
-        let y = unified_output.y.get(dr, unified_instance)?;
+        // Get mu, nu from unified instance
         let mu = unified_output.mu.get(dr, unified_instance)?;
         let nu = unified_output.nu.get(dr, unified_instance)?;
 
-        // Compute k(y) for left application circuit (headers).
-        let left_app_ky = {
-            let mut ky = Ky::new(dr, y.clone());
-            preamble.left.left_header.write(dr, &mut ky)?;
-            preamble.left.right_header.write(dr, &mut ky)?;
-            preamble.left.output_header.write(dr, &mut ky)?;
-            ky.finish(dr)?
-        };
-
-        // Compute k(y) for right application circuit (headers).
-        let right_app_ky = {
-            let mut ky = Ky::new(dr, y.clone());
-            preamble.right.left_header.write(dr, &mut ky)?;
-            preamble.right.right_header.write(dr, &mut ky)?;
-            preamble.right.output_header.write(dr, &mut ky)?;
-            ky.finish(dr)?
-        };
-
-        // Compute k(y) for left unified circuit.
-        let left_unified_ky = {
-            let mut ky = Ky::new(dr, y.clone());
-            preamble.left.unified.write(dr, &mut ky)?;
-            Element::zero(dr).write(dr, &mut ky)?;
-            ky.finish(dr)?
-        };
-
-        // Compute k(y) for right unified circuit.
-        let right_unified_ky = {
-            let mut ky = Ky::new(dr, y.clone());
-            preamble.right.unified.write(dr, &mut ky)?;
-            Element::zero(dr).write(dr, &mut ky)?;
-            ky.finish(dr)?
-        };
-
-        // TODO: Compute ky values properly based on the preamble
-        let mut ky_values =
-            vec![left_app_ky, right_app_ky, left_unified_ky, right_unified_ky].into_iter();
+        // Read k(y) values from error_n stage (computed and verified in hashes_1).
+        let mut ky_values = [
+            error_n.left_app_ky,
+            error_n.right_app_ky,
+            error_n.left_unified_ky,
+            error_n.right_unified_ky,
+        ]
+        .into_iter();
 
         for (i, error_terms) in error_m.error_terms.iter().enumerate() {
             let ky_values =
