@@ -121,27 +121,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let mesh_wy = self.compute_mesh_wy(rng, w, y);
 
         // Compute error_m stage (Layer 1: N instances of M-sized reductions).
-        let error_m_witness = stages::native::error_m::Witness::<C, NativeParameters> {
-            error_terms: FixedVec::from_fn(|_| FixedVec::from_fn(|_| C::CircuitField::todo())),
-        };
-        let native_error_m_rx =
-            stages::native::error_m::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
-                &error_m_witness,
-            )?;
-        let native_error_m_blind = C::CircuitField::random(&mut *rng);
-        let native_error_m_commitment =
-            native_error_m_rx.commit(host_generators, native_error_m_blind);
-
-        // Nested error_m commitment (includes both native_error_m_commitment and mesh_wy_commitment)
-        let nested_error_m_witness = stages::nested::error_m::Witness {
-            native_error_m: native_error_m_commitment,
-            mesh_wy: mesh_wy.mesh_wy_commitment,
-        };
-        let nested_error_m_rx =
-            stages::nested::error_m::Stage::<C::HostCurve, R>::rx(&nested_error_m_witness)?;
-        let nested_error_m_blind = C::ScalarField::random(&mut *rng);
-        let nested_error_m_commitment =
-            nested_error_m_rx.commit(nested_generators, nested_error_m_blind);
+        let (
+            (native_error_m_rx, native_error_m_blind, native_error_m_commitment),
+            (nested_error_m_rx, nested_error_m_blind, nested_error_m_commitment),
+            error_m_witness,
+        ) = self.compute_error_m(rng, mesh_wy.mesh_wy_commitment)?;
 
         // Absorb nested_error_m_commitment, then save sponge state for bridging
         Point::constant(&mut dr, nested_error_m_commitment)?.write(&mut dr, &mut sponge)?;
@@ -804,5 +788,64 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             mesh_wy_blind,
             mesh_wy_commitment,
         }
+    }
+
+    /// Compute error_m proof (layer 1 of the fold).
+    #[allow(clippy::type_complexity)]
+    fn compute_error_m<RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        mesh_wy_commitment: C::HostCurve,
+    ) -> Result<(
+        (
+            ragu_circuits::polynomials::structured::Polynomial<C::CircuitField, R>,
+            C::CircuitField,
+            C::HostCurve,
+        ),
+        (
+            ragu_circuits::polynomials::structured::Polynomial<C::ScalarField, R>,
+            C::ScalarField,
+            C::NestedCurve,
+        ),
+        stages::native::error_m::Witness<C, NativeParameters>,
+    )> {
+        let host_generators = self.params.host_generators();
+        let nested_generators = self.params.nested_generators();
+
+        let error_m_witness = stages::native::error_m::Witness::<C, NativeParameters> {
+            error_terms: FixedVec::from_fn(|_| FixedVec::from_fn(|_| C::CircuitField::todo())),
+        };
+        let native_error_m_rx =
+            stages::native::error_m::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
+                &error_m_witness,
+            )?;
+        let native_error_m_blind = C::CircuitField::random(&mut *rng);
+        let native_error_m_commitment =
+            native_error_m_rx.commit(host_generators, native_error_m_blind);
+
+        // Nested error_m commitment (includes both native_error_m_commitment and mesh_wy_commitment)
+        let nested_error_m_witness = stages::nested::error_m::Witness {
+            native_error_m: native_error_m_commitment,
+            mesh_wy: mesh_wy_commitment,
+        };
+        let nested_error_m_rx =
+            stages::nested::error_m::Stage::<C::HostCurve, R>::rx(&nested_error_m_witness)?;
+        let nested_error_m_blind = C::ScalarField::random(&mut *rng);
+        let nested_error_m_commitment =
+            nested_error_m_rx.commit(nested_generators, nested_error_m_blind);
+
+        Ok((
+            (
+                native_error_m_rx,
+                native_error_m_blind,
+                native_error_m_commitment,
+            ),
+            (
+                nested_error_m_rx,
+                nested_error_m_blind,
+                nested_error_m_commitment,
+            ),
+            error_m_witness,
+        ))
     }
 }
