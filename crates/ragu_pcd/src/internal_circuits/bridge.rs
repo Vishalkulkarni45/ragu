@@ -19,7 +19,7 @@ use ragu_core::{
 use ragu_primitives::{
     Element,
     io::Write,
-    vec::{CollectFixed, ConstLen, FixedVec},
+    vec::{ConstLen, FixedVec},
 };
 
 use core::marker::PhantomData;
@@ -89,29 +89,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
 
     fn instance<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>>(
         &self,
-        dr: &mut D,
-        instance: DriverValue<D, Self::Instance<'source>>,
+        _: &mut D,
+        _: DriverValue<D, Self::Instance<'source>>,
     ) -> Result<<Self::Output as GadgetKind<C::CircuitField>>::Rebind<'dr, D>>
     where
         Self: 'dr,
     {
-        // Allocate left_header from instance
-        let left_header: FixedVec<Element<'dr, D>, ConstLen<HEADER_SIZE>> = (0..HEADER_SIZE)
-            .map(|i| Element::alloc(dr, instance.view().map(|(l, _)| l[i])))
-            .try_collect_fixed()?;
-
-        // Allocate right_header from instance
-        let right_header: FixedVec<Element<'dr, D>, ConstLen<HEADER_SIZE>> = (0..HEADER_SIZE)
-            .map(|i| Element::alloc(dr, instance.view().map(|(_, r)| r[i])))
-            .try_collect_fixed()?;
-
-        Ok(Suffix::new(
-            Output {
-                left_header,
-                right_header,
-            },
-            Element::zero(dr),
-        ))
+        unreachable!("instance for internal circuits is not invoked")
     }
 
     fn witness<'a, 'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>>(

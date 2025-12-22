@@ -24,7 +24,7 @@ impl<F: Field> ragu_circuits::Circuit<F> for Circuit {
         _: &mut D,
         _: DriverValue<D, Self::Instance<'source>>,
     ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>> {
-        Ok(Element::one())
+        unreachable!("instance for internal circuits is not invoked")
     }
 
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = F>>(
