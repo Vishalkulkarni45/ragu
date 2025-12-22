@@ -52,7 +52,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right: Pcd<'source, C, R, S::Right>,
     ) -> Result<(Proof<C, R>, S::Aux<'source>)> {
         let host_generators = self.params.host_generators();
-        let nested_generators = self.params.nested_generators();
 
         // PHASE ONE: Application circuit.
         //
@@ -216,25 +215,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let u = *sponge.squeeze(&mut dr)?.value().take();
 
         // Compute eval witness (stubbed for now).
-        let eval_witness = internal_circuits::stages::native::eval::Witness {
-            evals: FixedVec::from_fn(|_| C::CircuitField::todo()),
-        };
-        let native_eval_rx =
-            internal_circuits::stages::native::eval::Stage::<C, R, HEADER_SIZE>::rx(&eval_witness)?;
-        let native_eval_blind = C::CircuitField::random(&mut *rng);
-        let native_eval_commitment = native_eval_rx.commit(host_generators, native_eval_blind);
-
-        let nested_eval_witness = internal_circuits::stages::nested::eval::Witness {
-            native_eval: native_eval_commitment,
-        };
-        let nested_eval_rx = internal_circuits::stages::nested::eval::Stage::<C::HostCurve, R>::rx(
-            &nested_eval_witness,
-        )?;
-        let nested_eval_blind = C::ScalarField::random(&mut *rng);
-        let nested_eval_commitment = nested_eval_rx.commit(nested_generators, nested_eval_blind);
+        let eval = self.compute_eval(rng)?;
 
         // Derive beta = H(nested_eval_commitment).
-        Point::constant(&mut dr, nested_eval_commitment)?.write(&mut dr, &mut sponge)?;
+        Point::constant(&mut dr, eval.nested_eval_commitment)?.write(&mut dr, &mut sponge)?;
         let beta = *sponge.squeeze(&mut dr)?.value().take();
 
         // Create the unified instance.
@@ -257,7 +241,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             alpha,
             nested_f_commitment: f.nested_f_commitment,
             u,
-            nested_eval_commitment,
+            nested_eval_commitment: eval.nested_eval_commitment,
             beta,
         };
 
@@ -364,14 +348,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 mesh_xy,
                 query,
                 f,
-                eval: EvalProof {
-                    native_eval_rx,
-                    native_eval_blind,
-                    native_eval_commitment,
-                    nested_eval_rx,
-                    nested_eval_blind,
-                    nested_eval_commitment,
-                },
+                eval,
                 internal_circuits: InternalCircuits {
                     w,
                     y,
@@ -990,6 +967,38 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             nested_f_rx,
             nested_f_blind,
             nested_f_commitment,
+        })
+    }
+
+    /// Compute the eval proof.
+    fn compute_eval<RNG: Rng>(&self, rng: &mut RNG) -> Result<EvalProof<C, R>> {
+        let host_generators = self.params.host_generators();
+        let nested_generators = self.params.nested_generators();
+
+        let eval_witness = internal_circuits::stages::native::eval::Witness {
+            evals: FixedVec::from_fn(|_| C::CircuitField::todo()),
+        };
+        let native_eval_rx =
+            internal_circuits::stages::native::eval::Stage::<C, R, HEADER_SIZE>::rx(&eval_witness)?;
+        let native_eval_blind = C::CircuitField::random(&mut *rng);
+        let native_eval_commitment = native_eval_rx.commit(host_generators, native_eval_blind);
+
+        let nested_eval_witness = internal_circuits::stages::nested::eval::Witness {
+            native_eval: native_eval_commitment,
+        };
+        let nested_eval_rx = internal_circuits::stages::nested::eval::Stage::<C::HostCurve, R>::rx(
+            &nested_eval_witness,
+        )?;
+        let nested_eval_blind = C::ScalarField::random(&mut *rng);
+        let nested_eval_commitment = nested_eval_rx.commit(nested_generators, nested_eval_blind);
+
+        Ok(EvalProof {
+            native_eval_rx,
+            native_eval_blind,
+            native_eval_commitment,
+            nested_eval_rx,
+            nested_eval_blind,
+            nested_eval_commitment,
         })
     }
 }
