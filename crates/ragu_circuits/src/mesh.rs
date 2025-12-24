@@ -192,6 +192,11 @@ impl<F: PrimeField, R: Rank> Mesh<'_, F, R> {
         self.key
     }
 
+    /// Returns a slice of the circuit objects in this mesh.
+    pub fn circuits(&self) -> &[Box<dyn CircuitObject<F, R> + '_>] {
+        &self.circuits
+    }
+
     /// Evaluate the mesh polynomial unrestricted at $W$.
     pub fn xy(&self, x: F, y: F) -> unstructured::Polynomial<F, R> {
         let mut coeffs = unstructured::Polynomial::default();

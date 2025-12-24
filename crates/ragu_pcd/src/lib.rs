@@ -196,3 +196,57 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Ok(rerandomized_proof.0.carry(data))
     }
 }
+
+#[cfg(test)]
+mod constraint_benchmark_tests {
+    use super::*;
+    use internal_circuits::InternalCircuitIndex;
+    use ragu_circuits::polynomials::R;
+    use ragu_pasta::Pasta;
+
+    #[rustfmt::skip]
+    #[test]
+    fn test_internal_circuit_constraint_counts() {
+        let pasta = Pasta::baked();
+
+        const HEADER_SIZE: usize = 10;
+        let app = ApplicationBuilder::<Pasta, R<13>, HEADER_SIZE>::new()
+            .finalize(pasta)
+            .unwrap();
+
+        let circuits = app.circuit_mesh.circuits();
+        const NUM_APP_STEPS: usize = 0;
+
+        macro_rules! check_constraints {
+            ($variant:ident, mul = $mul:expr, lin = $lin:expr) => {{
+                let idx =
+                    NUM_APP_STEPS + step::NUM_INTERNAL_STEPS + InternalCircuitIndex::$variant as usize;
+                let circuit = &circuits[idx];
+                let (actual_mul, actual_lin) = circuit.constraint_counts();
+                assert_eq!(
+                    actual_mul,
+                    $mul,
+                    "{}: multiplication constraints: expected {}, got {}",
+                    stringify!($variant),
+                    $mul,
+                    actual_mul
+                );
+                assert_eq!(
+                    actual_lin,
+                    $lin,
+                    "{}: linear constraints: expected {}, got {}",
+                    stringify!($variant),
+                    $lin,
+                    actual_lin
+                );
+            }};
+        }
+
+        check_constraints!(DummyCircuit,    mul = 1,    lin = 3);
+        check_constraints!(Hashes1Circuit,  mul = 2030, lin = 3192);
+        check_constraints!(Hashes2Circuit,  mul = 1931, lin = 2951);
+        check_constraints!(FoldCircuit,     mul = 1704, lin = 2506);
+        check_constraints!(ComputeCCircuit, mul = 1074, lin = 1229);
+        check_constraints!(ComputeVCircuit, mul = 184,  lin = 247);
+    }
+}
