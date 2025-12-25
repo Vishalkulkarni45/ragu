@@ -92,28 +92,28 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
                     step::rerandomize::Rerandomize::<()>::new(),
                 ))?;
 
-        // Compute circuit counts from known constants.
-        let (total_circuits, log2_circuits) =
-            internal_circuits::total_circuit_counts(self.num_application_steps);
-
         // Then, insert all of the internal circuits used for recursion plumbing.
-        self.circuit_mesh = internal_circuits::register_all::<C, R, HEADER_SIZE>(
-            self.circuit_mesh,
-            params,
-            log2_circuits,
-        )?;
+        {
+            let (total_circuits, log2_circuits) =
+                internal_circuits::total_circuit_counts(self.num_application_steps);
 
-        // Verify circuit count matches expectation.
-        assert_eq!(
-            self.circuit_mesh.log2_circuits(),
-            log2_circuits,
-            "log2_circuits mismatch"
-        );
-        assert_eq!(
-            self.circuit_mesh.num_circuits(),
-            total_circuits,
-            "final circuit count mismatch"
-        );
+            self.circuit_mesh = internal_circuits::register_all::<C, R, HEADER_SIZE>(
+                self.circuit_mesh,
+                params,
+                log2_circuits,
+            )?;
+
+            assert_eq!(
+                self.circuit_mesh.log2_circuits(),
+                log2_circuits,
+                "log2_circuits mismatch"
+            );
+            assert_eq!(
+                self.circuit_mesh.num_circuits(),
+                total_circuits,
+                "final circuit count mismatch"
+            );
+        }
 
         Ok(Application {
             circuit_mesh: self.circuit_mesh.finalize(params.circuit_poseidon())?,
