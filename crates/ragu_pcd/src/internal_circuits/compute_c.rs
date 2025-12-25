@@ -81,8 +81,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
             builder.add_stage::<native_error_n::Stage<C, R, HEADER_SIZE, FP>>()?;
         let dr = builder.finish();
 
+        // These two stages are enforced here because spare constraints are
+        // available, but we don't actually use them for anything.
         let _preamble = preamble.enforced(dr, witness.view().map(|w| w.preamble_witness))?;
         let _error_m = error_m.enforced(dr, witness.view().map(|w| w.error_m_witness))?;
+
         let error_n = error_n.enforced(dr, witness.view().map(|w| w.error_n_witness))?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
