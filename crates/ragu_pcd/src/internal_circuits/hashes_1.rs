@@ -123,11 +123,6 @@ pub struct Output<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> {
     pub right_header: FixedVec<Element<'dr, D>, ConstLen<HEADER_SIZE>>,
 }
 
-/// [`GadgetKind`] for the [`Output`] type, with a [`Suffix`] wrapper.
-#[allow(type_alias_bounds)]
-pub type OutputKind<C: Cycle, const HEADER_SIZE: usize> =
-    Kind![C::CircuitField; Suffix<'_, _, Output<'_, _, C, HEADER_SIZE>>];
-
 /// First hash circuit for Fiat-Shamir challenge derivation.
 ///
 /// See the [module-level documentation] for details on the operations
@@ -186,7 +181,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
 
     type Instance<'source> = &'source unified::Instance<C>;
     type Witness<'source> = Witness<'source, C, R, HEADER_SIZE, FP>;
-    type Output = OutputKind<C, HEADER_SIZE>;
+    type Output = Kind![C::CircuitField; Suffix<'_, _, Output<'_, _, C, HEADER_SIZE>>];
     type Aux<'source> = ();
 
     fn instance<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>>(
