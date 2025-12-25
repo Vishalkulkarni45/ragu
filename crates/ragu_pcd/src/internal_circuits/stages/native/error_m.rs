@@ -1,4 +1,4 @@
-//! Error stage (layer 1) for merge operations.
+//! Error stage (layer 1) for fuse operations.
 //!
 //! This stage handles N separate M-sized revdot claim reductions.
 
@@ -39,7 +39,7 @@ pub struct Output<'dr, D: Driver<'dr>, FP: fold_revdot::Parameters> {
     pub error_terms: FixedVec<FixedVec<Element<'dr, D>, ErrorTermsLen<FP::M>>, FP::N>,
 }
 
-/// The error_m stage (layer 1) of the merge witness.
+/// The error_m stage (layer 1) of the fuse witness.
 #[derive(Default)]
 pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize, FP: fold_revdot::Parameters> {
     _marker: PhantomData<(C, R, FP)>,

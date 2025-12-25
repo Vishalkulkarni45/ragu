@@ -1,4 +1,4 @@
-//! Eval stage for merge operations.
+//! Eval stage for fuse operations.
 
 use arithmetic::Cycle;
 use ragu_circuits::{polynomials::Rank, staging};
@@ -40,7 +40,7 @@ pub struct Output<'dr, D: Driver<'dr>> {
     pub evals: FixedVec<Element<'dr, D>, Evals>,
 }
 
-/// The eval stage of the merge witness.
+/// The eval stage of the fuse witness.
 #[derive(Default)]
 pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize> {
     _marker: PhantomData<(C, R)>,

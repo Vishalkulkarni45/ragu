@@ -1,4 +1,4 @@
-//! Error stage (layer 2) for merge operations.
+//! Error stage (layer 2) for fuse operations.
 //!
 //! This stage handles the final N-sized revdot claim reduction.
 
@@ -89,7 +89,7 @@ pub struct Output<
     pub sponge_state: SpongeState<'dr, D, Poseidon>,
 }
 
-/// The error_n stage (layer 2) of the merge witness.
+/// The error_n stage (layer 2) of the fuse witness.
 #[derive(Default)]
 pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize, FP: fold_revdot::Parameters> {
     _marker: PhantomData<(C, R, FP)>,

@@ -1,4 +1,4 @@
-//! Query stage for merge operations.
+//! Query stage for fuse operations.
 
 use arithmetic::Cycle;
 use ragu_circuits::{polynomials::Rank, staging};
@@ -40,7 +40,7 @@ pub struct Output<'dr, D: Driver<'dr>> {
     pub queries: FixedVec<Element<'dr, D>, Queries>,
 }
 
-/// The query stage of the merge witness.
+/// The query stage of the fuse witness.
 #[derive(Default)]
 pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize> {
     _marker: PhantomData<(C, R)>,

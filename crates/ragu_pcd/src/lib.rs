@@ -10,9 +10,9 @@
 extern crate alloc;
 
 mod components;
+mod fuse;
 pub mod header;
 mod internal_circuits;
-mod merge;
 mod proof;
 pub mod step;
 mod verify;
