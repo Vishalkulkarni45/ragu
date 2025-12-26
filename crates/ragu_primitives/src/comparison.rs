@@ -1,66 +1,31 @@
 //! Comparison gadget for field elements.
+//!
+//! This module re-exports comparison functions from [`Boolean`].
 
-use arithmetic::Coeff;
-use ff::Field;
-use ragu_core::{
-    Result,
-    drivers::{Driver, LinearExpression},
-    maybe::Maybe,
-};
+use ragu_core::{Result, drivers::Driver};
 
 use crate::{Boolean, Element};
 
-/// Compares two elements and returns a boolean indicating whether they are equal.
-/// Uses the standard "inverse trick" for equality checking in arithmetic circuits.
+/// Convenience method that compares two elements and returns a boolean
+/// indicating whether they are equal.
 pub fn is_equal<'dr, D: Driver<'dr>>(
     dr: &mut D,
     a: &Element<'dr, D>,
     b: &Element<'dr, D>,
 ) -> Result<Boolean<'dr, D>> {
-    let diff = a.sub(dr, b);
-
-    let is_equal_witness = D::just(|| *diff.value().take() == D::F::ZERO);
-    let diff_inv = D::just(|| diff.value().take().invert().unwrap_or(D::F::ZERO));
-
-    let is_equal_fe = || {
-        if *is_equal_witness.snag() {
-            D::F::ONE
-        } else {
-            D::F::ZERO
-        }
-    };
-    let diff_coeff = || Coeff::Arbitrary(*diff.value().take());
-
-    // Constraint: diff * inv = 1 - is_eq.
-    let (diff_wire, _, one_minus_is_equal) = dr.mul(|| {
-        Ok((
-            diff_coeff(),
-            Coeff::Arbitrary(*diff_inv.snag()),
-            Coeff::Arbitrary(D::F::ONE - is_equal_fe()),
-        ))
-    })?;
-    dr.enforce_equal(&diff_wire, diff.wire())?;
-    let is_equal_wire = dr.add(|lc| lc.add(&D::ONE).sub(&one_minus_is_equal));
-
-    // Constraint: diff * is_eq = 0.
-    let (diff_wire, is_equal_wire_2, zero_product) =
-        dr.mul(|| Ok((diff_coeff(), Coeff::Arbitrary(is_equal_fe()), Coeff::Zero)))?;
-    dr.enforce_equal(&diff_wire, diff.wire())?;
-    dr.enforce_equal(&is_equal_wire_2, &is_equal_wire)?;
-    dr.enforce_zero(|lc| lc.add(&zero_product))?;
-
-    Ok(Boolean::promote(is_equal_wire, is_equal_witness))
+    Boolean::is_equal(dr, a, b)
 }
 
-/// Convience method that compares an element against the constant ONE
+/// Convenience method that compares an element against the constant ONE
 /// and returns a boolean gadget.
 pub fn is_one<'dr, D: Driver<'dr>>(dr: &mut D, a: &Element<'dr, D>) -> Result<Boolean<'dr, D>> {
-    is_equal(dr, a, &Element::one())
+    Boolean::is_one(dr, a)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ff::Field;
     use ragu_core::maybe::Maybe;
 
     type F = ragu_pasta::Fp;

@@ -89,16 +89,54 @@ impl<'dr, D: Driver<'dr>> Boolean<'dr, D> {
         &self.wire
     }
 
+    /// Compares two elements and returns a boolean indicating whether they are equal.
+    /// Uses the standard "inverse trick" for equality checking in arithmetic circuits.
+    pub fn is_equal(dr: &mut D, a: &Element<'dr, D>, b: &Element<'dr, D>) -> Result<Self> {
+        let diff = a.sub(dr, b);
+
+        let is_equal_witness = D::just(|| *diff.value().take() == D::F::ZERO);
+        let diff_inv = D::just(|| diff.value().take().invert().unwrap_or(D::F::ZERO));
+
+        let is_equal_fe = is_equal_witness.fe::<D::F>();
+        let diff_coeff = || Coeff::Arbitrary(*diff.value().take());
+
+        // Constraint: diff * inv = 1 - is_eq.
+        let (diff_wire, _, one_minus_is_equal) = dr.mul(|| {
+            Ok((
+                diff_coeff(),
+                Coeff::Arbitrary(*diff_inv.snag()),
+                Coeff::Arbitrary(D::F::ONE - *is_equal_fe.snag()),
+            ))
+        })?;
+        dr.enforce_equal(&diff_wire, diff.wire())?;
+        let is_equal_wire = dr.add(|lc| lc.add(&D::ONE).sub(&one_minus_is_equal));
+
+        // Constraint: diff * is_eq = 0.
+        let (diff_wire, is_equal_wire_2, zero_product) = dr.mul(|| {
+            Ok((
+                diff_coeff(),
+                Coeff::Arbitrary(*is_equal_fe.snag()),
+                Coeff::Zero,
+            ))
+        })?;
+        dr.enforce_equal(&diff_wire, diff.wire())?;
+        dr.enforce_equal(&is_equal_wire_2, &is_equal_wire)?;
+        dr.enforce_zero(|lc| lc.add(&zero_product))?;
+
+        Ok(Boolean {
+            wire: is_equal_wire,
+            value: is_equal_witness,
+        })
+    }
+
+    /// Compares an element against the constant ONE and returns a boolean gadget.
+    pub fn is_one(dr: &mut D, a: &Element<'dr, D>) -> Result<Self> {
+        Self::is_equal(dr, a, &Element::one())
+    }
+
     /// Converts this boolean into an [`Element`].
     pub fn element(&self) -> Element<'dr, D> {
         Element::promote(self.wire.clone(), self.value().fe())
-    }
-
-    /// Constructs a new boolean from a wire and a witness value.
-    /// This is necessary for constructing a Boolean from a raw wire
-    /// when the boolean constraint is enforced through other means.
-    pub fn promote(wire: D::Wire, value: DriverValue<D, bool>) -> Self {
-        Boolean { wire, value }
     }
 }
 
