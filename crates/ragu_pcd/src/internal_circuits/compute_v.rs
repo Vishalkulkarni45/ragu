@@ -78,7 +78,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
         let x = unified_output.x.get(dr, unified_instance)?;
         let z = unified_output.z.get(dr, unified_instance)?;
 
-        let _txz = dr.routine(Evaluate::new(R::RANK), (x, z))?;
+        let txz = dr.routine(Evaluate::new(R::RANK), (x, z))?;
+        unified_output.v.set(txz);
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

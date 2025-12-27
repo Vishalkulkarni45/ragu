@@ -133,6 +133,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, eval.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let beta = transcript.squeeze(&mut dr)?;
 
+        let v = Self::compute_v(&mut dr, &x, &z)?;
+
         let challenges = Challenges::new(
             &w, &y, &z, &mu, &nu, &mu_prime, &nu_prime, &x, &alpha, &u, &beta,
         );
@@ -152,6 +154,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             &error_n_witness,
             &challenges,
             c,
+            v,
         )?;
 
         Ok((
@@ -168,6 +171,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 challenges,
                 circuits,
                 c,
+                v,
             },
             // We return the application auxiliary data for potential use by the
             // caller.
@@ -582,6 +586,22 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         )
     }
 
+    /// TODO
+    fn compute_v<'dr, D>(
+        dr: &mut D,
+        x: &Element<'dr, D>,
+        z: &Element<'dr, D>,
+    ) -> Result<C::CircuitField>
+    where
+        D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
+    {
+        let txz = dr.routine(
+            ragu_circuits::polynomials::txz::Evaluate::new(R::RANK),
+            (x.clone(), z.clone()),
+        )?;
+        Ok(*txz.value().take())
+    }
+
     /// Compute the A/B polynomials proof.
     ///
     /// Commits to A and B polynomials, then creates the nested commitment.
@@ -745,6 +765,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         error_n_witness: &stages::native::error_n::Witness<C, NativeParameters>,
         challenges: &Challenges<C>,
         c: C::CircuitField,
+        v: C::CircuitField,
     ) -> Result<CircuitCommitments<C, R>> {
         // Build unified instance from proof structs and challenges.
         let unified_instance = &unified::Instance {
@@ -768,6 +789,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             u: challenges.u,
             nested_eval_commitment: eval.nested_commitment,
             beta: challenges.beta,
+            v,
         };
 
         // compute_c staged circuit.

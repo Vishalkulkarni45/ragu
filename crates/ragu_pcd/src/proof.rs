@@ -32,6 +32,7 @@ pub struct Proof<C: Cycle, R: Rank> {
     pub(crate) challenges: Challenges<C>,
     pub(crate) circuits: CircuitCommitments<C, R>,
     pub(crate) c: C::CircuitField,
+    pub(crate) v: C::CircuitField,
 }
 
 /// Application-specific proof data including circuit ID, headers, and commitment.
@@ -414,6 +415,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 fold_commitment: host_commitment,
             },
             c: C::CircuitField::ZERO,
+            v: C::CircuitField::ZERO,
         }
     }
 }

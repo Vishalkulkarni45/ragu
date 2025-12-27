@@ -161,7 +161,7 @@ mod test_params {
     // When changing HEADER_SIZE, update the constraint counts by running:
     //   cargo test -p ragu_pcd --release print_internal_circuit -- --nocapture
     // Then copy-paste the output into the check_constraints! calls in the test below.
-    const HEADER_SIZE: usize = 38;
+    const HEADER_SIZE: usize = 37;
 
     // Number of dummy application circuits to register before testing internal
     // circuits. This ensures the tests work correctly even when application
@@ -212,11 +212,11 @@ mod test_params {
             }};
         }
 
-        check_constraints!(Hashes1Circuit,  mul = 1947, lin = 2832);
-        check_constraints!(Hashes2Circuit,  mul = 2048, lin = 2951);
-        check_constraints!(FoldCircuit,     mul = 1892, lin = 2649);
-        check_constraints!(ComputeCCircuit, mul = 1873, lin = 2610);
-        check_constraints!(ComputeVCircuit, mul = 268 , lin = 247);
+        check_constraints!(Hashes1Circuit,  mul = 1937, lin = 2815);
+        check_constraints!(Hashes2Circuit,  mul = 2047, lin = 2952);
+        check_constraints!(FoldCircuit,     mul = 1891, lin = 2650);
+        check_constraints!(ComputeCCircuit, mul = 1870, lin = 2607);
+        check_constraints!(ComputeVCircuit, mul = 266 , lin = 248);
     }
 
     #[rustfmt::skip]
@@ -229,11 +229,11 @@ mod test_params {
             }};
         }
 
-        check_stage!(Preamble, skip =   0, num = 143);
-        check_stage!(ErrorM,   skip = 143, num = 270);
-        check_stage!(ErrorN,   skip = 413, num = 168);
-        check_stage!(Query,    skip = 143, num =   3);
-        check_stage!(Eval,     skip = 146, num =   3);
+        check_stage!(Preamble, skip =   0, num = 141);
+        check_stage!(ErrorM,   skip = 141, num = 270);
+        check_stage!(ErrorN,   skip = 411, num = 168);
+        check_stage!(Query,    skip = 141, num =   3);
+        check_stage!(Eval,     skip = 144, num =   3);
     }
 
     /// Helper test to print current constraint counts in copy-pasteable format.
