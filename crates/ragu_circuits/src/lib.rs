@@ -22,6 +22,7 @@ pub mod polynomials;
 mod rx;
 mod s;
 pub mod staging;
+mod trivial;
 
 #[cfg(test)]
 mod tests;

@@ -163,6 +163,11 @@ mod test_params {
     // Then copy-paste the output into the check_constraints! calls in the test below.
     const HEADER_SIZE: usize = 38;
 
+    // Number of dummy application circuits to register before testing internal
+    // circuits. This ensures the tests work correctly even when application
+    // steps are present.
+    const NUM_APP_STEPS: usize = 6000;
+
     type Preamble = preamble::Stage<Pasta, R<13>, HEADER_SIZE>;
     type ErrorM = error_m::Stage<Pasta, R<13>, HEADER_SIZE, NativeParameters>;
     type ErrorN = error_n::Stage<Pasta, R<13>, HEADER_SIZE, NativeParameters>;
@@ -175,11 +180,12 @@ mod test_params {
         let pasta = Pasta::baked();
 
         let app = ApplicationBuilder::<Pasta, R<13>, HEADER_SIZE>::new()
+            .register_dummy_circuits(NUM_APP_STEPS)
+            .unwrap()
             .finalize(pasta)
             .unwrap();
 
         let circuits = app.circuit_mesh.circuits();
-        const NUM_APP_STEPS: usize = 0;
 
         macro_rules! check_constraints {
             ($variant:ident, mul = $mul:expr, lin = $lin:expr) => {{
@@ -206,7 +212,7 @@ mod test_params {
             }};
         }
 
-        check_constraints!(Hashes1Circuit,  mul = 1929, lin = 2796);
+        check_constraints!(Hashes1Circuit,  mul = 1947, lin = 2832);
         check_constraints!(Hashes2Circuit,  mul = 2048, lin = 2951);
         check_constraints!(FoldCircuit,     mul = 1892, lin = 2649);
         check_constraints!(ComputeCCircuit, mul = 1873, lin = 2610);
@@ -237,11 +243,12 @@ mod test_params {
         let pasta = Pasta::baked();
 
         let app = ApplicationBuilder::<Pasta, R<13>, HEADER_SIZE>::new()
+            .register_dummy_circuits(NUM_APP_STEPS)
+            .unwrap()
             .finalize(pasta)
             .unwrap();
 
         let circuits = app.circuit_mesh.circuits();
-        const NUM_APP_STEPS: usize = 0;
 
         let variants = [
             ("Hashes1Circuit", InternalCircuitIndex::Hashes1Circuit),

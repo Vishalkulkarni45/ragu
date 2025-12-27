@@ -79,6 +79,19 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
         Ok(self)
     }
 
+    /// Register `count` trivial circuits to simulate application steps.
+    ///
+    /// This is useful for testing internal circuit behavior with a non-zero
+    /// number of application steps, without needing real [`Step`] implementations.
+    #[cfg(test)]
+    pub(crate) fn register_dummy_circuits(mut self, count: usize) -> Result<Self> {
+        for _ in 0..count {
+            self.circuit_mesh = self.circuit_mesh.register_circuit(())?;
+            self.num_application_steps += 1;
+        }
+        Ok(self)
+    }
+
     /// Perform finalization and optimization steps to produce the
     /// [`Application`].
     pub fn finalize(
