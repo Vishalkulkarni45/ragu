@@ -22,29 +22,32 @@ pub use crate::internal_circuits::InternalCircuitIndex::ErrorNStage as STAGING_I
 
 use crate::components::fold_revdot::{self, ErrorTermsLen};
 
+/// $k(Y)$ evaluation values computed during fuse operation.
+pub struct KyValues<F> {
+    pub left_application: F,
+    pub right_application: F,
+    pub left_unified: F,
+    pub right_unified: F,
+    pub left_unified_bridge: F,
+    pub right_unified_bridge: F,
+}
+
 /// Witness data for the error_n stage (layer 2).
 ///
-/// Contains N²-N error terms for the second layer of reduction, plus
-/// the N collapsed values from layer 1 folding, and the saved sponge state
-/// for bridging the transcript between hashes_1 and hashes_2.
+/// Contains $N^2 - N$ error terms for the second layer of reduction, plus the
+/// $N$ collapsed values from layer 1 folding, and the saved sponge state for
+/// bridging the transcript between hashes_1 and hashes_2.
 pub struct Witness<C: Cycle, FP: fold_revdot::Parameters> {
     /// Error term elements for layer 2.
     pub error_terms: FixedVec<C::CircuitField, ErrorTermsLen<FP::N>>,
-    /// Collapsed values from layer 1 folding (N values).
-    /// These are the outputs of N M-sized revdot reductions.
+
+    /// Collapsed values from layer 1 folding ($N$ values). These are the
+    /// outputs of $N$ individual size-$M$ revdot reductions.
     pub collapsed: FixedVec<C::CircuitField, FP::N>,
-    /// k(y) for left application circuit (from left proof headers).
-    pub left_application_ky: C::CircuitField,
-    /// k(y) for right application circuit (from right proof headers).
-    pub right_application_ky: C::CircuitField,
-    /// k(y) for left unified circuit.
-    pub left_unified_ky: C::CircuitField,
-    /// k(y) for right unified circuit.
-    pub right_unified_ky: C::CircuitField,
-    /// k(y) for left child's header-unified binding.
-    pub left_unified_bridge_ky: C::CircuitField,
-    /// k(y) for right child's header-unified binding.
-    pub right_unified_bridge_ky: C::CircuitField,
+
+    /// $k(y)$ evaluation values.
+    pub ky: KyValues<C::CircuitField>,
+
     /// Sponge state elements saved after absorbing nested_error_m_commitment.
     /// Used to bridge the Fiat-Shamir transcript between hashes_1 and hashes_2.
     pub sponge_state_elements:
@@ -125,15 +128,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
             .map(|i| Element::alloc(dr, witness.view().map(|w| w.collapsed[i])))
             .try_collect_fixed()?;
         let left_application_ky =
-            Element::alloc(dr, witness.view().map(|w| w.left_application_ky))?;
+            Element::alloc(dr, witness.view().map(|w| w.ky.left_application))?;
         let right_application_ky =
-            Element::alloc(dr, witness.view().map(|w| w.right_application_ky))?;
-        let left_unified_ky = Element::alloc(dr, witness.view().map(|w| w.left_unified_ky))?;
-        let right_unified_ky = Element::alloc(dr, witness.view().map(|w| w.right_unified_ky))?;
+            Element::alloc(dr, witness.view().map(|w| w.ky.right_application))?;
+        let left_unified_ky = Element::alloc(dr, witness.view().map(|w| w.ky.left_unified))?;
+        let right_unified_ky = Element::alloc(dr, witness.view().map(|w| w.ky.right_unified))?;
         let left_unified_bridge_ky =
-            Element::alloc(dr, witness.view().map(|w| w.left_unified_bridge_ky))?;
+            Element::alloc(dr, witness.view().map(|w| w.ky.left_unified_bridge))?;
         let right_unified_bridge_ky =
-            Element::alloc(dr, witness.view().map(|w| w.right_unified_bridge_ky))?;
+            Element::alloc(dr, witness.view().map(|w| w.ky.right_unified_bridge))?;
         let sponge_state = SpongeState::from_elements(FixedVec::try_from_fn(|i| {
             Element::alloc(dr, witness.view().map(|w| w.sponge_state_elements[i]))
         })?);
