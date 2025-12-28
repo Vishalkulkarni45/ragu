@@ -79,6 +79,21 @@ impl<'dr, D: Driver<'dr>> Boolean<'dr, D> {
         })
     }
 
+    /// Selects between two elements based on this boolean's value.
+    /// Returns `if_true` when true, `if_false` when false.
+    /// This costs one multiplication constraint and two linear constraints.
+    pub fn select(
+        &self,
+        dr: &mut D,
+        if_true: &Element<'dr, D>,
+        if_false: &Element<'dr, D>,
+    ) -> Result<Element<'dr, D>> {
+        // Result = if_false + cond * (if_true - if_false)
+        let diff = if_true.sub(dr, if_false);
+        let cond_times_diff = self.element().mul(dr, &diff)?;
+        Ok(if_false.add(dr, &cond_times_diff))
+    }
+
     /// Returns the witness value of this boolean.
     pub fn value(&self) -> DriverValue<D, bool> {
         self.value.clone()
@@ -235,6 +250,38 @@ fn test_boolean_alloc() -> Result<()> {
 
     alloc(false)?;
     alloc(true)?;
+
+    Ok(())
+}
+
+#[test]
+fn test_select() -> Result<()> {
+    type F = ragu_pasta::Fp;
+    type Simulator = crate::Simulator<F>;
+
+    Simulator::simulate((true, F::from(1u64), F::from(2u64)), |dr, witness| {
+        let (cond, a, b) = witness.cast();
+        let cond = Boolean::alloc(dr, cond)?;
+        let a = Element::alloc(dr, a)?;
+        let b = Element::alloc(dr, b)?;
+
+        let result = cond.select(dr, &a, &b)?;
+        assert_eq!(*result.value().take(), F::from(1u64));
+
+        Ok(())
+    })?;
+
+    Simulator::simulate((false, F::from(1u64), F::from(2u64)), |dr, witness| {
+        let (cond, a, b) = witness.cast();
+        let cond = Boolean::alloc(dr, cond)?;
+        let a = Element::alloc(dr, a)?;
+        let b = Element::alloc(dr, b)?;
+
+        let result = cond.select(dr, &a, &b)?;
+        assert_eq!(*result.value().take(), F::from(2u64));
+
+        Ok(())
+    })?;
 
     Ok(())
 }
