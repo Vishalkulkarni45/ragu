@@ -104,17 +104,6 @@ impl<'dr, D: Driver<'dr>> Boolean<'dr, D> {
         &self.wire
     }
 
-    /// Compares two elements and returns a boolean indicating whether they are equal.
-    pub fn is_equal(dr: &mut D, a: &Element<'dr, D>, b: &Element<'dr, D>) -> Result<Self> {
-        let diff = a.sub(dr, b);
-        is_zero(dr, &diff)
-    }
-
-    /// Compares an element against the constant ONE and returns a boolean gadget.
-    pub fn is_one(dr: &mut D, a: &Element<'dr, D>) -> Result<Self> {
-        Self::is_equal(dr, a, &Element::one())
-    }
-
     /// Converts this boolean into an [`Element`].
     pub fn element(&self) -> Element<'dr, D> {
         Element::promote(self.wire.clone(), self.value().fe())
@@ -313,6 +302,52 @@ fn test_multipack() -> Result<()> {
     })?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragu_core::maybe::Maybe;
+
+    type F = ragu_pasta::Fp;
+    type Simulator = crate::Simulator<F>;
+
+    #[test]
+    fn test_is_equal_same() -> Result<()> {
+        let sim = Simulator::simulate((F::from(123u64), F::from(123u64)), |dr, witness| {
+            let (a_val, b_val) = witness.cast();
+            let a = Element::alloc(dr, a_val)?;
+            let b = Element::alloc(dr, b_val)?;
+
+            dr.reset();
+            let eq = a.is_equal(dr, &b)?;
+
+            assert!(eq.value().take(), "Expected a == b");
+            Ok(())
+        })?;
+
+        assert_eq!(sim.num_multiplications(), 2);
+        assert_eq!(sim.num_linear_constraints(), 4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_not_equal() -> Result<()> {
+        Simulator::simulate((F::from(1u64), F::from(123u64)), |dr, witness| {
+            let (a_val, b_val) = witness.cast();
+            let a = Element::alloc(dr, a_val)?;
+            let b = Element::alloc(dr, b_val)?;
+
+            dr.reset();
+            let eq = a.is_equal(dr, &b)?;
+
+            assert!(!eq.value().take(), "Expected a != b");
+            Ok(())
+        })?;
+
+        Ok(())
+    }
 }
 
 #[test]
