@@ -234,7 +234,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, query.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let alpha = transcript.squeeze(&mut dr)?;
 
-        let f = self.compute_f(rng)?;
+        let f = self.compute_f(rng, &alpha, &left, &right)?;
         Point::constant(&mut dr, f.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let u = transcript.squeeze(&mut dr)?;
 
@@ -244,7 +244,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let beta = transcript.squeeze(&mut dr)?;
 
         let p = self.compute_p(
-            rng, &beta, &u, &left, &right, &s_prime, &error_m, &ab, &query,
+            rng, &beta, &u, &left, &right, &s_prime, &error_m, &ab, &query, &f,
         )?;
 
         let challenges = Challenges::new(
@@ -797,6 +797,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         error_m: &ErrorMProof<C, R>,
         ab: &ABProof<C, R>,
         query: &QueryProof<C, R>,
+        f: &FProof<C, R>,
     ) -> Result<PProof<C, R>>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
@@ -804,7 +805,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let beta = *beta.value().take();
         let u = *u.value().take();
 
-        let mut poly = unstructured::Polynomial::new();
+        let mut poly = f.poly.clone();
 
         let acc_s = |p: &mut unstructured::Polynomial<_, _>, term| {
             p.scale(beta);
@@ -978,9 +979,34 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     }
 
     /// Compute the F polynomial proof.
-    fn compute_f<RNG: Rng>(&self, rng: &mut RNG) -> Result<FProof<C, R>> {
-        let poly =
-            ragu_circuits::polynomials::unstructured::Polynomial::<C::CircuitField, R>::new();
+    fn compute_f<'dr, D, RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        alpha: &Element<'dr, D>,
+        left: &Proof<C, R>,
+        right: &Proof<C, R>,
+    ) -> Result<FProof<C, R>>
+    where
+        D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
+    {
+        let alpha = *alpha.value().take();
+
+        // List of each query of every polynomial in this fuse step.
+        let mut iters = [
+            arithmetic::factor_iter(left.p.poly.iter_coeffs(), left.challenges.u),
+            arithmetic::factor_iter(right.p.poly.iter_coeffs(), right.challenges.u),
+        ];
+
+        let mut coeffs = Vec::new();
+        while let Some(first) = iters[0].next() {
+            let c = iters[1..]
+                .iter_mut()
+                .fold(first, |acc, iter| alpha * acc + iter.next().unwrap());
+            coeffs.push(c);
+        }
+        coeffs.reverse();
+
+        let poly = unstructured::Polynomial::from_coeffs(coeffs);
         let blind = C::CircuitField::random(&mut *rng);
         let commitment = poly.commit(C::host_generators(self.params), blind);
 

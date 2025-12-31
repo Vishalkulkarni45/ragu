@@ -91,12 +91,39 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
 
         let x = unified_output.x.get(dr, unified_instance)?;
         let z = unified_output.z.get(dr, unified_instance)?;
+        let alpha = unified_output.alpha.get(dr, unified_instance)?;
+        let u = unified_output.u.get(dr, unified_instance)?;
         let beta = unified_output.beta.get(dr, unified_instance)?;
 
         let _txz = dr.routine(Evaluate::new(R::RANK), (x, z))?;
 
         {
+            // Inversions for denominators (u - x_i)
+            let denominator_left_u = u.sub(dr, &preamble.left.unified.u).invert(dr)?;
+            let denominator_right_u = u.sub(dr, &preamble.right.unified.u).invert(dr)?;
+
+            // Quotient data: (p(u), v, 1/(u - x_i))
+            // Proves p(x_i) = v_i
+            let quotients = [
+                (
+                    &eval.left.p_poly,
+                    &preamble.left.unified.v,
+                    &denominator_left_u,
+                ),
+                (
+                    &eval.right.p_poly,
+                    &preamble.right.unified.v,
+                    &denominator_right_u,
+                ),
+            ];
+
+            let mut horner = Horner::new(dr, &alpha);
+            for (pu, v, denominator) in quotients {
+                pu.sub(dr, v).mul(dr, denominator)?.write(dr, &mut horner)?;
+            }
+            let fu = horner.finish();
             let mut horner = Horner::new(dr, &beta);
+            fu.write(dr, &mut horner)?;
             eval.write(dr, &mut horner)?;
             let computed_v = horner.finish();
             let witnessed_v = unified_output.v.get(dr, unified_instance)?;
