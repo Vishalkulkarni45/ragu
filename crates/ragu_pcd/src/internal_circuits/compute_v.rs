@@ -9,6 +9,7 @@ use ragu_core::{
     gadgets::GadgetKind,
     maybe::Maybe,
 };
+use ragu_primitives::GadgetExt;
 
 use core::marker::PhantomData;
 
@@ -16,6 +17,8 @@ use super::{
     stages::native::{eval as native_eval, preamble as native_preamble, query as native_query},
     unified::{self, OutputBuilder},
 };
+use crate::components::horner::Horner;
+
 pub use crate::internal_circuits::InternalCircuitIndex::ComputeVCircuit as CIRCUIT_ID;
 
 pub struct Circuit<C: Cycle, R, const HEADER_SIZE: usize> {
@@ -75,23 +78,36 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
         let (eval, builder) = builder.add_stage::<native_eval::Stage<C, R, HEADER_SIZE>>()?;
         let dr = builder.finish();
 
-        let _preamble = preamble.unenforced(dr, witness.view().map(|w| w.preamble_witness))?;
+        let preamble = preamble.unenforced(dr, witness.view().map(|w| w.preamble_witness))?;
 
         // TODO: these are unenforced for now, because query/eval stages aren't
         // supposed to contain anything (yet) besides Elements, which require no
         // enforcement logic. Re-evaluate this in the future.
         let _query = query.unenforced(dr, witness.view().map(|w| w.query_witness))?;
-        let _eval = eval.unenforced(dr, witness.view().map(|w| w.eval_witness))?;
+        let eval = eval.unenforced(dr, witness.view().map(|w| w.eval_witness))?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
 
         let x = unified_output.x.get(dr, unified_instance)?;
         let z = unified_output.z.get(dr, unified_instance)?;
+        let beta = unified_output.beta.get(dr, unified_instance)?;
 
         let _txz = dr.routine(Evaluate::new(R::RANK), (x, z))?;
-        // TODO:
-        // unified_output.v.set(txz);
+
+        {
+            let mut horner = Horner::new(dr, &beta);
+            eval.write(dr, &mut horner)?;
+            let computed_v = horner.finish();
+            let witnessed_v = unified_output.v.get(dr, unified_instance)?;
+
+            // When NOT in base case, enforce witnessed_v == computed_v.
+            // In base case (both children trivial), prover may witness any v value.
+            preamble
+                .is_base_case(dr)?
+                .not(dr)
+                .conditional_enforce_equal(dr, &witnessed_v, &computed_v)?;
+        }
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

@@ -8,7 +8,7 @@ use ragu_core::{
     gadgets::{Gadget, GadgetKind, Kind},
     maybe::Maybe,
 };
-use ragu_primitives::Element;
+use ragu_primitives::{Element, io::Write};
 
 use core::marker::PhantomData;
 
@@ -35,7 +35,7 @@ const NUM_EVALS_PER_CHILD_PROOF: usize = 15;
 const NUM_EVALS_FOR_CURRENT_STEP: usize = 6;
 
 /// Output gadget for a single child proof's polynomial evaluations at `u`.
-#[derive(Gadget)]
+#[derive(Gadget, Write)]
 pub struct ChildEvaluations<'dr, D: Driver<'dr>> {
     #[ragu(gadget)]
     pub application: Element<'dr, D>,
@@ -120,7 +120,7 @@ impl<'dr, D: Driver<'dr>> ChildEvaluations<'dr, D> {
 }
 
 /// Output gadget for the eval stage.
-#[derive(Gadget)]
+#[derive(Gadget, Write)]
 pub struct Output<'dr, D: Driver<'dr>> {
     #[ragu(gadget)]
     pub left: ChildEvaluations<'dr, D>,
