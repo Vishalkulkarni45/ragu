@@ -29,9 +29,9 @@ pub struct Proof<C: Cycle, R: Rank> {
     pub(crate) query: QueryProof<C, R>,
     pub(crate) f: FProof<C, R>,
     pub(crate) eval: EvalProof<C, R>,
+    pub(crate) p: PProof<C, R>,
     pub(crate) challenges: Challenges<C>,
     pub(crate) circuits: CircuitCommitments<C, R>,
-    pub(crate) v: C::CircuitField,
 }
 
 /// Application-specific proof data including circuit ID, headers, and commitment.
@@ -166,6 +166,20 @@ pub(crate) struct EvalProof<C: Cycle, R: Rank> {
     pub(crate) nested_rx: structured::Polynomial<C::ScalarField, R>,
     pub(crate) nested_blind: C::ScalarField,
     pub(crate) nested_commitment: C::NestedCurve,
+}
+
+/// Batch polynomial evaluation proof.
+#[derive(Clone)]
+pub(crate) struct PProof<C: Cycle, R: Rank> {
+    /// $p(X)$
+    pub(crate) poly: unstructured::Polynomial<C::CircuitField, R>,
+    /// Blinding factor for $p(X)$ commitment
+    pub(crate) blind: C::CircuitField,
+    /// $p(X)$ commitment
+    pub(crate) commitment: C::HostCurve,
+
+    /// $v = p(u)$
+    pub(crate) v: C::CircuitField,
 }
 
 /// Fiat-Shamir challenges derived during proof generation.
@@ -399,6 +413,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_blind,
                 nested_commitment,
             },
+            p: PProof {
+                poly: zero_unstructured.clone(),
+                blind: host_blind,
+                commitment: host_commitment,
+
+                // p(X) = 0 => v = p(u) = 0
+                v: C::CircuitField::ZERO,
+            },
             challenges: Challenges::trivial(),
             circuits: CircuitCommitments {
                 hashes_1_rx: zero_structured_host.clone(),
@@ -417,7 +439,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 compute_v_blind: host_blind,
                 compute_v_commitment: host_commitment,
             },
-            v: C::CircuitField::ZERO,
         }
     }
 }

@@ -3,7 +3,7 @@ use ff::{Field, PrimeField};
 use ragu_circuits::{
     CircuitExt,
     mesh::{CircuitIndex, Mesh},
-    polynomials::{Rank, structured},
+    polynomials::{Rank, structured, unstructured},
     staging::{Stage, StageExt},
 };
 use ragu_core::{
@@ -31,7 +31,7 @@ use crate::{
     },
     proof::{
         ABProof, ApplicationProof, Challenges, CircuitCommitments, ErrorMProof, ErrorNProof,
-        EvalProof, FProof, Pcd, PreambleProof, Proof, QueryProof, SPrimeProof,
+        EvalProof, FProof, PProof, Pcd, PreambleProof, Proof, QueryProof, SPrimeProof,
     },
     step::{Step, adapter::Adapter},
 };
@@ -242,7 +242,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, eval.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let beta = transcript.squeeze(&mut dr)?;
 
-        let v = Self::compute_v(&mut dr, &x, &z)?;
+        let p = self.compute_p(rng, &u)?;
 
         let challenges = Challenges::new(
             &w, &y, &z, &mu, &nu, &mu_prime, &nu_prime, &x, &alpha, &u, &beta,
@@ -258,13 +258,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             &query,
             &f,
             &eval,
+            &p,
             &preamble_witness,
             &error_m_witness,
             &error_n_witness,
             &query_witness,
             &eval_witness,
             &challenges,
-            v,
         )?;
 
         Ok((
@@ -278,9 +278,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 query,
                 f,
                 eval,
+                p,
                 challenges,
                 circuits,
-                v,
             },
             // We return the application auxiliary data for potential use by the
             // caller.
@@ -782,20 +782,32 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         ))
     }
 
-    /// TODO
-    fn compute_v<'dr, D>(
-        dr: &mut D,
-        x: &Element<'dr, D>,
-        z: &Element<'dr, D>,
-    ) -> Result<C::CircuitField>
+    /// Compute the $P$ polynomial proof.
+    ///
+    /// Creates a random polynomial $p(X)$, commits it with native and nested
+    /// layers, and computes $v = p(u)$.
+    fn compute_p<'dr, D, RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        u: &Element<'dr, D>,
+    ) -> Result<PProof<C, R>>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
-        let txz = dr.routine(
-            ragu_circuits::polynomials::txz::Evaluate::new(R::RANK),
-            (x.clone(), z.clone()),
-        )?;
-        Ok(*txz.value().take())
+        // Create random polynomial p(X)
+        let poly = unstructured::Polynomial::<C::CircuitField, R>::random(&mut *rng);
+        let blind = C::CircuitField::random(&mut *rng);
+        let commitment = poly.commit(C::host_generators(self.params), blind);
+
+        // Compute v = p(u)
+        let v = poly.eval(*u.value().take());
+
+        Ok(PProof {
+            poly,
+            blind,
+            commitment,
+            v,
+        })
     }
 
     /// Compute the A/B polynomials proof.
@@ -995,13 +1007,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         query: &QueryProof<C, R>,
         f: &FProof<C, R>,
         eval: &EvalProof<C, R>,
+        p: &PProof<C, R>,
         preamble_witness: &stages::native::preamble::Witness<'_, C, R, HEADER_SIZE>,
         error_m_witness: &stages::native::error_m::Witness<C, NativeParameters>,
         error_n_witness: &stages::native::error_n::Witness<C, NativeParameters>,
         query_witness: &internal_circuits::stages::native::query::Witness<C>,
         eval_witness: &internal_circuits::stages::native::eval::Witness<C::CircuitField>,
         challenges: &Challenges<C>,
-        v: C::CircuitField,
     ) -> Result<CircuitCommitments<C, R>> {
         // Build unified instance from proof structs and challenges.
         let unified_instance = &unified::Instance {
@@ -1025,7 +1037,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             u: challenges.u,
             nested_eval_commitment: eval.nested_commitment,
             beta: challenges.beta,
-            v,
+            v: p.v,
         };
 
         // hashes_1 staged circuit.

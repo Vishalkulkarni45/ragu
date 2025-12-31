@@ -188,7 +188,7 @@ impl<'dr, D: Driver<'dr>, C: Cycle> Output<'dr, D, C> {
         let nested_eval_commitment =
             Point::alloc(dr, proof.view().map(|p| p.eval.nested_commitment))?;
         let beta = Element::alloc(dr, proof.view().map(|p| p.challenges.beta))?;
-        let v = Element::alloc(dr, proof.view().map(|p| p.v))?;
+        let v = Element::alloc(dr, proof.view().map(|p| p.p.v))?;
 
         Ok(Output {
             nested_preamble_commitment,

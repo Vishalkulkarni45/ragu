@@ -161,7 +161,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 .all(|(ky, (a, b))| a.revdot(b) == ky)
         };
 
-        Ok(revdot_claims)
+        // Check polynomial evaluation claim.
+        let p_eval_claim = pcd.proof.p.poly.eval(pcd.proof.challenges.u) == pcd.proof.p.v;
+
+        Ok(revdot_claims && p_eval_claim)
     }
 }
 
