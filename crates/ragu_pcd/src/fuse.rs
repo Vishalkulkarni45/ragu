@@ -235,7 +235,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, query.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let alpha = transcript.squeeze(&mut dr)?;
 
-        let f = self.compute_f(rng, &alpha, &left, &right)?;
+        let f = self.compute_f(
+            rng, &w, &y, &z, &x, &alpha, &s_prime, &error_m, &ab, &query, &left, &right,
+        )?;
         Point::constant(&mut dr, f.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let u = transcript.squeeze(&mut dr)?;
 
@@ -1027,19 +1029,46 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     fn compute_f<'dr, D, RNG: Rng>(
         &self,
         rng: &mut RNG,
+        w: &Element<'dr, D>,
+        y: &Element<'dr, D>,
+        z: &Element<'dr, D>,
+        x: &Element<'dr, D>,
         alpha: &Element<'dr, D>,
+        s_prime: &SPrimeProof<C, R>,
+        error_m: &ErrorMProof<C, R>,
+        _ab: &ABProof<C, R>,
+        query: &QueryProof<C, R>,
         left: &Proof<C, R>,
         right: &Proof<C, R>,
     ) -> Result<FProof<C, R>>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
+        use arithmetic::factor_iter;
+        use internal_circuits::stages::nested::f;
+
+        let w = *w.value().take();
+        let y = *y.value().take();
+        let _z = *z.value().take();
+        let x = *x.value().take();
         let alpha = *alpha.value().take();
 
         // List of each query of every polynomial in this fuse step.
         let mut iters = [
-            arithmetic::factor_iter(left.p.poly.iter_coeffs(), left.challenges.u),
-            arithmetic::factor_iter(right.p.poly.iter_coeffs(), right.challenges.u),
+            // Check p(X) accumulator
+            factor_iter(left.p.poly.iter_coeffs(), left.challenges.u),
+            factor_iter(right.p.poly.iter_coeffs(), right.challenges.u),
+            // Consistency checks for mesh polynomials
+            factor_iter(left.query.mesh_xy_poly.iter_coeffs(), w),
+            factor_iter(right.query.mesh_xy_poly.iter_coeffs(), w),
+            factor_iter(s_prime.mesh_wx0_poly.iter_coeffs(), left.challenges.y),
+            factor_iter(s_prime.mesh_wx1_poly.iter_coeffs(), right.challenges.y),
+            factor_iter(s_prime.mesh_wx0_poly.iter_coeffs(), y),
+            factor_iter(s_prime.mesh_wx1_poly.iter_coeffs(), y),
+            factor_iter(error_m.mesh_wy_poly.iter_coeffs(), left.challenges.x),
+            factor_iter(error_m.mesh_wy_poly.iter_coeffs(), right.challenges.x),
+            factor_iter(error_m.mesh_wy_poly.iter_coeffs(), x),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), w),
         ];
 
         let mut coeffs = Vec::new();
@@ -1055,11 +1084,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let blind = C::CircuitField::random(&mut *rng);
         let commitment = poly.commit(C::host_generators(self.params), blind);
 
-        let nested_f_witness = internal_circuits::stages::nested::f::Witness {
+        let nested_f_witness = f::Witness {
             native_f: commitment,
         };
-        let nested_rx =
-            internal_circuits::stages::nested::f::Stage::<C::HostCurve, R>::rx(&nested_f_witness)?;
+        let nested_rx = f::Stage::<C::HostCurve, R>::rx(&nested_f_witness)?;
         let nested_blind = C::ScalarField::random(&mut *rng);
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
