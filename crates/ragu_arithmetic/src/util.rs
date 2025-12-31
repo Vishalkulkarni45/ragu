@@ -346,3 +346,64 @@ fn test_geosum() {
         assert_eq!(geosum(r, m), geosum_slow(r, m));
     }
 }
+
+#[test]
+fn test_batched_quotient_streaming() {
+    use ff::Field;
+    use pasta_curves::Fp as F;
+
+    let polys: Vec<Vec<F>> = vec![
+        vec![F::from(1), F::from(2), F::from(3), F::from(4)],
+        vec![F::from(5), F::from(6), F::from(7), F::from(8)],
+        vec![F::from(9), F::from(10), F::from(11), F::from(12)],
+    ];
+    let x = F::from(42);
+    let alpha = F::from(7);
+
+    let f_coeffs: Vec<F> = {
+        let mut iters: Vec<_> = polys
+            .iter()
+            .map(|p| factor_iter(p.iter().copied(), x))
+            .collect();
+
+        let mut coeffs_rev = Vec::new();
+        while let Some(first) = iters[0].next() {
+            let c = iters[1..]
+                .iter_mut()
+                .fold(first, |acc, iter| alpha * acc + iter.next().unwrap());
+            coeffs_rev.push(c);
+        }
+        coeffs_rev.reverse();
+        coeffs_rev
+    };
+
+    let f_expected: Vec<F> = {
+        let quotients: Vec<Vec<F>> = polys.iter().map(|p| factor(p.iter().copied(), x)).collect();
+
+        let n = quotients.len();
+        let max_len = quotients.iter().map(|q| q.len()).max().unwrap();
+        let mut f = vec![F::ZERO; max_len];
+        for (i, q) in quotients.iter().enumerate() {
+            let alpha_i = alpha.pow([(n - 1 - i) as u64]);
+            for (j, &c) in q.iter().enumerate() {
+                f[j] += alpha_i * c;
+            }
+        }
+        f
+    };
+
+    assert_eq!(f_coeffs, f_expected);
+
+    let y = F::from(100);
+    let f_at_y = eval(f_coeffs.iter(), y);
+    let n = polys.len();
+    let expected_at_y: F = polys
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let q_at_y = eval(factor(p.iter().copied(), x).iter(), y);
+            alpha.pow([(n - 1 - i) as u64]) * q_at_y
+        })
+        .sum();
+    assert_eq!(f_at_y, expected_at_y);
+}
