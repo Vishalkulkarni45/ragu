@@ -142,7 +142,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
                     &preamble,
                     self.num_application_steps,
                 )?;
-                let mut horner = Horner::new(dr, &alpha);
+                let mut horner = Horner::new(&alpha);
                 for (pu, v, denominator) in poly_queries(
                     &eval,
                     &query,
@@ -153,16 +153,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
                 ) {
                     pu.sub(dr, v).mul(dr, denominator)?.write(dr, &mut horner)?;
                 }
-                horner.finish()
+                horner.finish(dr)
             };
 
             // Compute expected v = p(u)
             let computed_v = {
                 let beta = unified_output.beta.get(dr, unified_instance)?;
-                let mut horner = Horner::new(dr, &beta);
+                let mut horner = Horner::new(&beta);
                 fu.write(dr, &mut horner)?;
                 eval.write(dr, &mut horner)?;
-                horner.finish()
+                horner.finish(dr)
             };
 
             // When NOT in base case, enforce witnessed_v == computed_v.

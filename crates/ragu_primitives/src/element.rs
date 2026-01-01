@@ -322,7 +322,11 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
         elements: impl DoubleEndedIterator<Item = E>,
         scale: &Element<'dr, D>,
     ) -> Result<Self> {
-        elements.rev().try_fold(Element::zero(dr), |acc, elem| {
+        let mut iter = elements.rev();
+        let Some(first) = iter.next() else {
+            return Ok(Element::zero(dr));
+        };
+        iter.try_fold(first.borrow().clone(), |acc, elem| {
             acc.mul(dr, scale)
                 .map(|scaled| scaled.add(dr, elem.borrow()))
         })

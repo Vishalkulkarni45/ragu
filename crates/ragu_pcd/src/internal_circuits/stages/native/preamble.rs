@@ -80,7 +80,7 @@ impl<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> ProofInputs<'dr, D
         dr: &mut D,
         y: &Element<'dr, D>,
     ) -> Result<(Element<'dr, D>, Element<'dr, D>)> {
-        let mut ky = Ky::new(dr, y);
+        let mut ky = Ky::new(y);
         self.unified.write(dr, &mut ky)?;
 
         Ok((
@@ -102,7 +102,7 @@ impl<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> ProofInputs<'dr, D
     ///
     /// Returns `application_ky` = k(y) for `(left_header, right_header, output_header)`.
     pub fn application_ky(&self, dr: &mut D, y: &Element<'dr, D>) -> Result<Element<'dr, D>> {
-        let mut ky = Ky::new(dr, y);
+        let mut ky = Ky::new(y);
         self.left_header.write(dr, &mut ky)?;
         self.right_header.write(dr, &mut ky)?;
         self.output_header.write(dr, &mut ky)?;

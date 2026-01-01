@@ -222,11 +222,11 @@ mod test_params {
             }};
         }
 
-        check_constraints!(Hashes1Circuit,         mul = 1937, lin = 2815);
+        check_constraints!(Hashes1Circuit,         mul = 1933, lin = 2807);
         check_constraints!(Hashes2Circuit,         mul = 2047, lin = 2952);
         check_constraints!(PartialCollapseCircuit, mul = 1891, lin = 2650);
         check_constraints!(FullCollapseCircuit,    mul = 1876, lin = 2620);
-        check_constraints!(ComputeVCircuit,        mul = 623,  lin = 869);
+        check_constraints!(ComputeVCircuit,        mul = 604,  lin = 831);
     }
 
     #[rustfmt::skip]

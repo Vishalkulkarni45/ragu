@@ -22,9 +22,9 @@ impl<'a, 'dr, D: Driver<'dr>> Clone for Ky<'a, 'dr, D> {
 
 impl<'a, 'dr, D: Driver<'dr>> Ky<'a, 'dr, D> {
     /// Creates a new buffer that evaluates k(Y) at point `y`.
-    pub fn new(dr: &mut D, y: &'a Element<'dr, D>) -> Self {
+    pub fn new(y: &'a Element<'dr, D>) -> Self {
         Ky {
-            inner: Horner::new(dr, y),
+            inner: Horner::new(y),
         }
     }
 
@@ -33,7 +33,7 @@ impl<'a, 'dr, D: Driver<'dr>> Ky<'a, 'dr, D> {
     pub fn finish(mut self, dr: &mut D) -> Result<Element<'dr, D>> {
         // Write trailing 1 and finish
         Element::one().write(dr, &mut self.inner)?;
-        Ok(self.inner.finish())
+        Ok(self.inner.finish(dr))
     }
 }
 
