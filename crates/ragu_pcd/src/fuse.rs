@@ -36,113 +36,6 @@ use crate::{
     step::{Step, adapter::Adapter},
 };
 
-/// Context for the prover to assemble a/b polynomial vectors for error term
-/// computation.
-///
-/// TODO: Extract shared logic with `Verifier` into a common `ClaimBuilder` trait.
-struct ProverContext<'m, 'rx, F: PrimeField, R: Rank> {
-    circuit_mesh: &'m Mesh<'m, F, R>,
-    num_application_steps: usize,
-    y: F,
-    z: F,
-    tz: structured::Polynomial<F, R>,
-    a: Vec<Cow<'rx, structured::Polynomial<F, R>>>,
-    b: Vec<Cow<'rx, structured::Polynomial<F, R>>>,
-}
-
-impl<'m, 'rx, F: PrimeField, R: Rank> ProverContext<'m, 'rx, F, R> {
-    /// Create a new prover context for assembling revdot claim polynomials.
-    fn new(circuit_mesh: &'m Mesh<'m, F, R>, num_application_steps: usize, y: F, z: F) -> Self {
-        Self {
-            circuit_mesh,
-            num_application_steps,
-            y,
-            z,
-            tz: R::tz(z),
-            a: Vec::new(),
-            b: Vec::new(),
-        }
-    }
-
-    /// Add a circuit claim with mesh polynomial transformation.
-    ///
-    /// Sets a = rx, b = rx(z) + s(y) + t(z).
-    fn circuit(&mut self, circuit_id: CircuitIndex, rx: &'rx structured::Polynomial<F, R>) {
-        self.circuit_impl(circuit_id, Cow::Borrowed(rx));
-    }
-
-    fn circuit_impl(
-        &mut self,
-        circuit_id: CircuitIndex,
-        rx: Cow<'rx, structured::Polynomial<F, R>>,
-    ) {
-        let sy = self.circuit_mesh.circuit_y(circuit_id, self.y);
-        let mut b = rx.as_ref().clone();
-        b.dilate(self.z);
-        b.add_assign(&sy);
-        b.add_assign(&self.tz);
-
-        self.a.push(rx);
-        self.b.push(Cow::Owned(b));
-    }
-
-    /// Add an internal circuit claim, summing multiple stage polynomials.
-    ///
-    /// Sets a = sum(rxs), b = sum(rxs)(z) + s(y) + t(z).
-    /// Used for hashes, collapse, and compute_v circuits.
-    fn internal_circuit(
-        &mut self,
-        id: InternalCircuitIndex,
-        rxs: &[&'rx structured::Polynomial<F, R>],
-    ) {
-        assert!(!rxs.is_empty(), "must provide at least one rx polynomial");
-        let circuit_id = id.circuit_index(self.num_application_steps);
-
-        let rx = if rxs.len() == 1 {
-            Cow::Borrowed(rxs[0])
-        } else {
-            let mut sum = rxs[0].clone();
-            for rx in &rxs[1..] {
-                sum.add_assign(rx);
-            }
-            Cow::Owned(sum)
-        };
-
-        self.circuit_impl(circuit_id, rx);
-    }
-
-    /// Add a stage claim for batching stage polynomial verification.
-    ///
-    /// Sets a = fold(rxs, z), b = s(y). Used for k(y) = 0 stage checks.
-    fn stage(&mut self, id: InternalCircuitIndex, rxs: &[&'rx structured::Polynomial<F, R>]) {
-        assert!(!rxs.is_empty(), "must provide at least one rx polynomial");
-
-        let circuit_id = id.circuit_index(self.num_application_steps);
-        let sy = self.circuit_mesh.circuit_y(circuit_id, self.y);
-
-        let a = if rxs.len() == 1 {
-            Cow::Borrowed(rxs[0])
-        } else {
-            Cow::Owned(structured::Polynomial::fold(rxs.iter().copied(), self.z))
-        };
-
-        self.a.push(a);
-        self.b.push(Cow::Owned(sy));
-    }
-
-    /// Add a raw claim without any mesh polynomial transformation.
-    ///
-    /// Used for proof::AB claims where k(y) = c (the revdot product).
-    fn raw_claim(
-        &mut self,
-        a: &'rx structured::Polynomial<F, R>,
-        b: &'rx structured::Polynomial<F, R>,
-    ) {
-        self.a.push(Cow::Borrowed(a));
-        self.b.push(Cow::Borrowed(b));
-    }
-}
-
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     /// Fuse two [`Pcd`] into one using a provided [`Step`].
     ///
@@ -1401,5 +1294,112 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             compute_v_blind: compute_v_rx_blind,
             compute_v_commitment: compute_v_rx_commitment,
         })
+    }
+}
+
+/// Context for the prover to assemble a/b polynomial vectors for error term
+/// computation.
+///
+/// TODO: Extract shared logic with `Verifier` into a common `ClaimBuilder` trait.
+struct ProverContext<'m, 'rx, F: PrimeField, R: Rank> {
+    circuit_mesh: &'m Mesh<'m, F, R>,
+    num_application_steps: usize,
+    y: F,
+    z: F,
+    tz: structured::Polynomial<F, R>,
+    a: Vec<Cow<'rx, structured::Polynomial<F, R>>>,
+    b: Vec<Cow<'rx, structured::Polynomial<F, R>>>,
+}
+
+impl<'m, 'rx, F: PrimeField, R: Rank> ProverContext<'m, 'rx, F, R> {
+    /// Create a new prover context for assembling revdot claim polynomials.
+    fn new(circuit_mesh: &'m Mesh<'m, F, R>, num_application_steps: usize, y: F, z: F) -> Self {
+        Self {
+            circuit_mesh,
+            num_application_steps,
+            y,
+            z,
+            tz: R::tz(z),
+            a: Vec::new(),
+            b: Vec::new(),
+        }
+    }
+
+    /// Add a circuit claim with mesh polynomial transformation.
+    ///
+    /// Sets a = rx, b = rx(z) + s(y) + t(z).
+    fn circuit(&mut self, circuit_id: CircuitIndex, rx: &'rx structured::Polynomial<F, R>) {
+        self.circuit_impl(circuit_id, Cow::Borrowed(rx));
+    }
+
+    fn circuit_impl(
+        &mut self,
+        circuit_id: CircuitIndex,
+        rx: Cow<'rx, structured::Polynomial<F, R>>,
+    ) {
+        let sy = self.circuit_mesh.circuit_y(circuit_id, self.y);
+        let mut b = rx.as_ref().clone();
+        b.dilate(self.z);
+        b.add_assign(&sy);
+        b.add_assign(&self.tz);
+
+        self.a.push(rx);
+        self.b.push(Cow::Owned(b));
+    }
+
+    /// Add an internal circuit claim, summing multiple stage polynomials.
+    ///
+    /// Sets a = sum(rxs), b = sum(rxs)(z) + s(y) + t(z).
+    /// Used for hashes, collapse, and compute_v circuits.
+    fn internal_circuit(
+        &mut self,
+        id: InternalCircuitIndex,
+        rxs: &[&'rx structured::Polynomial<F, R>],
+    ) {
+        assert!(!rxs.is_empty(), "must provide at least one rx polynomial");
+        let circuit_id = id.circuit_index(self.num_application_steps);
+
+        let rx = if rxs.len() == 1 {
+            Cow::Borrowed(rxs[0])
+        } else {
+            let mut sum = rxs[0].clone();
+            for rx in &rxs[1..] {
+                sum.add_assign(rx);
+            }
+            Cow::Owned(sum)
+        };
+
+        self.circuit_impl(circuit_id, rx);
+    }
+
+    /// Add a stage claim for batching stage polynomial verification.
+    ///
+    /// Sets a = fold(rxs, z), b = s(y). Used for k(y) = 0 stage checks.
+    fn stage(&mut self, id: InternalCircuitIndex, rxs: &[&'rx structured::Polynomial<F, R>]) {
+        assert!(!rxs.is_empty(), "must provide at least one rx polynomial");
+
+        let circuit_id = id.circuit_index(self.num_application_steps);
+        let sy = self.circuit_mesh.circuit_y(circuit_id, self.y);
+
+        let a = if rxs.len() == 1 {
+            Cow::Borrowed(rxs[0])
+        } else {
+            Cow::Owned(structured::Polynomial::fold(rxs.iter().copied(), self.z))
+        };
+
+        self.a.push(a);
+        self.b.push(Cow::Owned(sy));
+    }
+
+    /// Add a raw claim without any mesh polynomial transformation.
+    ///
+    /// Used for proof::AB claims where k(y) = c (the revdot product).
+    fn raw_claim(
+        &mut self,
+        a: &'rx structured::Polynomial<F, R>,
+        b: &'rx structured::Polynomial<F, R>,
+    ) {
+        self.a.push(Cow::Borrowed(a));
+        self.b.push(Cow::Borrowed(b));
     }
 }
