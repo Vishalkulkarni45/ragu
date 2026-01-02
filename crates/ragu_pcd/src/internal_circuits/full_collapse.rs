@@ -9,6 +9,7 @@ use ragu_core::{
     gadgets::GadgetKind,
     maybe::Maybe,
 };
+use ragu_primitives::vec::{FixedVec, Len};
 
 use core::marker::PhantomData;
 
@@ -95,12 +96,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         // Layer 1 folding is verified by circuit_ky; we use error_n.collapsed directly.
         {
             // Layer 2: Single N-sized reduction using collapsed from error_n as ky_values
+            let collapsed_desc =
+                FixedVec::from_fn(|idx| error_n.collapsed[FP::N::len() - 1 - idx].clone());
+
             let fold_products = fold_revdot::FoldProducts::new(dr, &mu_prime, &nu_prime)?;
-            let computed_c = fold_products.fold_products_n::<FP>(
-                dr,
-                &error_n.error_terms,
-                &error_n.collapsed,
-            )?;
+            let computed_c =
+                fold_products.fold_products_n::<FP>(dr, &error_n.error_terms, &collapsed_desc)?;
 
             // Get the witnessed C from the instance (fills the slot).
             let witnessed_c = unified_output.c.get(dr, unified_instance)?;

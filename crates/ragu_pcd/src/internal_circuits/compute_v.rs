@@ -269,14 +269,14 @@ fn fold_two_layer<'dr, D: Driver<'dr>, P: Parameters>(
     let mut results = Vec::with_capacity(P::N::len());
 
     for chunk in sources.chunks(P::M::len()) {
-        results.push(Element::fold(dr, chunk.iter(), layer1_scale)?);
+        results.push(Element::fold(dr, chunk.iter().rev(), layer1_scale)?);
     }
 
     while results.len() < P::N::len() {
         results.push(Element::zero(dr));
     }
 
-    Element::fold(dr, results.iter(), layer2_scale)
+    Element::fold(dr, results.iter().rev(), layer2_scale)
 }
 
 struct SourceBuilder<'dr, D: Driver<'dr>> {
@@ -334,7 +334,7 @@ impl<'dr, D: Driver<'dr>> SourceBuilder<'dr, D> {
         I::IntoIter: DoubleEndedIterator,
     {
         self.ax
-            .push(Element::fold(dr, ax_evals.into_iter(), &self.z)?);
+            .push(Element::fold(dr, ax_evals.into_iter().rev(), &self.z)?);
         self.bx.push(bx_mesh.clone());
         Ok(())
     }
