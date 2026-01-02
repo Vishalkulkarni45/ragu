@@ -1426,7 +1426,10 @@ impl<'m, 'rx, F: PrimeField, R: Rank> ProverContext<'m, 'rx, F, R> {
         let a = if rxs.len() == 1 {
             Cow::Borrowed(rxs[0])
         } else {
-            Cow::Owned(structured::Polynomial::fold(rxs.iter().copied(), self.z))
+            Cow::Owned(structured::Polynomial::fold(
+                rxs.iter().rev().copied(),
+                self.z,
+            ))
         };
 
         self.a.push(a);
