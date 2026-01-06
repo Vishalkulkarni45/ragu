@@ -140,12 +140,12 @@ pub struct ChildEvaluationsWitness<F> {
     pub a_poly_at_x: F,
     /// B polynomial evaluation at x.
     pub b_poly_at_x: F,
-    /// Old mesh_xy polynomial evaluation at new w.
-    pub old_mesh_xy_at_new_w: F,
-    /// New mesh_xy polynomial evaluation at old circuit_id.
-    pub new_mesh_xy_at_old_circuit_id: F,
-    /// New mesh_wy polynomial evaluation at old x.
-    pub new_mesh_wy_at_old_x: F,
+    /// Child's mesh_xy polynomial evaluated at current step's w.
+    pub child_mesh_xy_at_current_w: F,
+    /// Current mesh_xy polynomial evaluated at child's circuit_id.
+    pub current_mesh_xy_at_child_circuit_id: F,
+    /// Current mesh_wy polynomial evaluated at child's x.
+    pub current_mesh_wy_at_child_x: F,
 }
 
 impl<F: PrimeField> ChildEvaluationsWitness<F> {
@@ -176,9 +176,10 @@ impl<F: PrimeField> ChildEvaluationsWitness<F> {
             compute_v: XzQueryWitness::eval(x, xz, |pt| proof.circuits.compute_v_rx.eval(pt)),
             a_poly_at_x: proof.ab.a_poly.eval(x),
             b_poly_at_x: proof.ab.b_poly.eval(x),
-            old_mesh_xy_at_new_w: proof.query.mesh_xy_poly.eval(w),
-            new_mesh_xy_at_old_circuit_id: mesh_xy.eval(proof.application.circuit_id.omega_j()),
-            new_mesh_wy_at_old_x: mesh_wy.eval(proof.challenges.x),
+            child_mesh_xy_at_current_w: proof.query.mesh_xy_poly.eval(w),
+            current_mesh_xy_at_child_circuit_id: mesh_xy
+                .eval(proof.application.circuit_id.omega_j()),
+            current_mesh_wy_at_child_x: mesh_wy.eval(proof.challenges.x),
         }
     }
 }
@@ -314,15 +315,15 @@ pub struct ChildEvaluations<'dr, D: Driver<'dr>> {
     /// B polynomial evaluation at x.
     #[ragu(gadget)]
     pub b_poly_at_x: Element<'dr, D>,
-    /// Old mesh_xy polynomial evaluation at new w.
+    /// Child's mesh_xy polynomial evaluated at current step's w.
     #[ragu(gadget)]
-    pub old_mesh_xy_at_new_w: Element<'dr, D>,
-    /// New mesh_xy polynomial evaluation at old circuit_id.
+    pub child_mesh_xy_at_current_w: Element<'dr, D>,
+    /// Current mesh_xy polynomial evaluated at child's circuit_id.
     #[ragu(gadget)]
-    pub new_mesh_xy_at_old_circuit_id: Element<'dr, D>,
-    /// New mesh_wy polynomial evaluation at old x.
+    pub current_mesh_xy_at_child_circuit_id: Element<'dr, D>,
+    /// Current mesh_wy polynomial evaluated at child's x.
     #[ragu(gadget)]
-    pub new_mesh_wy_at_old_x: Element<'dr, D>,
+    pub current_mesh_wy_at_child_x: Element<'dr, D>,
 }
 
 impl<'dr, D: Driver<'dr>> ChildEvaluations<'dr, D> {
@@ -345,17 +346,19 @@ impl<'dr, D: Driver<'dr>> ChildEvaluations<'dr, D> {
             compute_v: XzQuery::alloc(dr, witness.view().map(|w| &w.compute_v))?,
             a_poly_at_x: Element::alloc(dr, witness.view().map(|w| w.a_poly_at_x))?,
             b_poly_at_x: Element::alloc(dr, witness.view().map(|w| w.b_poly_at_x))?,
-            old_mesh_xy_at_new_w: Element::alloc(
+            child_mesh_xy_at_current_w: Element::alloc(
                 dr,
-                witness.view().map(|w| w.old_mesh_xy_at_new_w),
+                witness.view().map(|w| w.child_mesh_xy_at_current_w),
             )?,
-            new_mesh_xy_at_old_circuit_id: Element::alloc(
+            current_mesh_xy_at_child_circuit_id: Element::alloc(
                 dr,
-                witness.view().map(|w| w.new_mesh_xy_at_old_circuit_id),
+                witness
+                    .view()
+                    .map(|w| w.current_mesh_xy_at_child_circuit_id),
             )?,
-            new_mesh_wy_at_old_x: Element::alloc(
+            current_mesh_wy_at_child_x: Element::alloc(
                 dr,
-                witness.view().map(|w| w.new_mesh_wy_at_old_x),
+                witness.view().map(|w| w.current_mesh_wy_at_child_x),
             )?,
         })
     }
