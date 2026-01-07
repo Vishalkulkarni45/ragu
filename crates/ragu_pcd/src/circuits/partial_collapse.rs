@@ -21,10 +21,7 @@ use ragu_core::{
 };
 use ragu_primitives::{Element, vec::FixedVec};
 
-use core::{
-    iter::{once, repeat_n},
-    marker::PhantomData,
-};
+use core::marker::PhantomData;
 
 use super::{
     stages::native::{
@@ -32,13 +29,12 @@ use super::{
     },
     unified::{self, OutputBuilder},
 };
-use crate::components::fold_revdot;
+use crate::components::{
+    claim_builder::{TwoProofKySource, ky_values},
+    fold_revdot,
+};
 
-pub use crate::internal_circuits::InternalCircuitIndex::PartialCollapseCircuit as CIRCUIT_ID;
-
-/// Number of circuits that use the unified k(y) value per proof.
-// TODO: this constant seems brittle because it may vary between the two fields.
-pub const NUM_UNIFIED_CIRCUITS: usize = 4;
+pub(crate) use crate::circuits::InternalCircuitIndex::PartialCollapseCircuit as CIRCUIT_ID;
 
 /// Circuit that verifies layer 1 revdot folding.
 pub struct Circuit<C: Cycle, R, const HEADER_SIZE: usize, FP: fold_revdot::Parameters> {
@@ -62,16 +58,16 @@ pub struct Witness<'a, C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_rev
     pub preamble_witness: &'a native_preamble::Witness<'a, C, R, HEADER_SIZE>,
     /// The unified instance containing challenges.
     pub unified_instance: &'a unified::Instance<C>,
-    /// Witness for the error_m stage (layer 1 error terms).
-    pub error_m_witness: &'a native_error_m::Witness<C, FP>,
     /// Witness for the error_n stage (layer 2 error terms + collapsed values).
     pub error_n_witness: &'a native_error_n::Witness<C, FP>,
+    /// Witness for the error_m stage (layer 1 error terms).
+    pub error_m_witness: &'a native_error_m::Witness<C, FP>,
 }
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
     StagedCircuit<C::CircuitField, R> for Circuit<C, R, HEADER_SIZE, FP>
 {
-    type Final = native_error_n::Stage<C, R, HEADER_SIZE, FP>;
+    type Final = native_error_m::Stage<C, R, HEADER_SIZE, FP>;
 
     type Instance<'source> = &'source unified::Instance<C>;
     type Witness<'source> = Witness<'source, C, R, HEADER_SIZE, FP>;
@@ -102,14 +98,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
     {
         let (preamble, builder) =
             builder.add_stage::<native_preamble::Stage<C, R, HEADER_SIZE>>()?;
-        let (error_m, builder) =
-            builder.add_stage::<native_error_m::Stage<C, R, HEADER_SIZE, FP>>()?;
         let (error_n, builder) =
             builder.add_stage::<native_error_n::Stage<C, R, HEADER_SIZE, FP>>()?;
+        let (error_m, builder) =
+            builder.add_stage::<native_error_m::Stage<C, R, HEADER_SIZE, FP>>()?;
         let dr = builder.finish();
         let preamble = preamble.unenforced(dr, witness.view().map(|w| w.preamble_witness))?;
-        let error_m = error_m.unenforced(dr, witness.view().map(|w| w.error_m_witness))?;
+
+        // TODO: these are unenforced for now, because error_n/error_m stages
+        // aren't supposed to contain anything (yet) besides Elements, which
+        // require no enforcement logic. Re-evaluate this in the future.
         let error_n = error_n.unenforced(dr, witness.view().map(|w| w.error_n_witness))?;
+        let error_m = error_m.unenforced(dr, witness.view().map(|w| w.error_m_witness))?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
@@ -119,37 +119,28 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         let nu = unified_output.nu.get(dr, unified_instance)?;
         let fold_products = fold_revdot::FoldProducts::new(dr, &mu, &nu)?;
 
-        // Read k(y) values from error_n stage, plus child c values from preamble.
-        // Ordering must match build_claims() interleaved order: for each claim type,
-        // left then right proof.
-        let mut ky_elements = once((
-            preamble.left.unified.c.clone(),
-            preamble.right.unified.c.clone(),
-        ))
-        .chain(once((
-            error_n.left.application.clone(),
-            error_n.right.application.clone(),
-        )))
-        .chain(once((
-            error_n.left.unified_bridge.clone(),
-            error_n.right.unified_bridge.clone(),
-        )))
-        .chain(repeat_n(
-            (error_n.left.unified.clone(), error_n.right.unified.clone()),
-            NUM_UNIFIED_CIRCUITS,
-        ))
-        .flat_map(|(l, r)| [l, r]);
+        // Read k(y) values from error_n stage, plus child c values from
+        // preamble. Ordering must match claim_builder.
+        let ky = TwoProofKySource {
+            left_raw_c: preamble.left.unified.c.clone(),
+            right_raw_c: preamble.right.unified.c.clone(),
+            left_app: error_n.left.application.clone(),
+            right_app: error_n.right.application.clone(),
+            left_bridge: error_n.left.unified_bridge.clone(),
+            right_bridge: error_n.right.unified_bridge.clone(),
+            left_unified: error_n.left.unified.clone(),
+            right_unified: error_n.right.unified.clone(),
+            zero: Element::zero(dr),
+        };
+        let mut ky = ky_values(&ky);
 
         for (i, error_terms) in error_m.error_terms.iter().enumerate() {
-            let ky_elements =
-                FixedVec::from_fn(|_| ky_elements.next().unwrap_or_else(|| Element::zero(dr)));
+            let ky = FixedVec::from_fn(|_| ky.next().unwrap());
 
             fold_products
-                .fold_products_m::<FP>(dr, error_terms, &ky_elements)?
+                .fold_products_m::<FP>(dr, error_terms, &ky)?
                 .enforce_equal(dr, &error_n.collapsed[i])?;
         }
-
-        assert!(ky_elements.next().is_none());
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

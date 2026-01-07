@@ -14,10 +14,10 @@ use ragu_core::{
 };
 use ragu_primitives::{Element, Point, io::Write};
 
-use crate::{components::suffix::Suffix, proof::Proof};
+use crate::{components::suffix::WithSuffix, proof::Proof};
 
 #[allow(type_alias_bounds)]
-pub type InternalOutputKind<C: Cycle> = Kind![C::CircuitField; Suffix<'_, _, Output<'_, _, C>>];
+pub type InternalOutputKind<C: Cycle> = Kind![C::CircuitField; WithSuffix<'_, _, Output<'_, _, C>>];
 
 /// The number of wires in an `Output` gadget.
 pub const NUM_WIRES: usize = 29;
@@ -263,10 +263,10 @@ impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, '
         instance: &DriverValue<D, &'a Instance<C>>,
     ) -> Result<<InternalOutputKind<C> as GadgetKind<D::F>>::Rebind<'dr, D>> {
         let zero = Element::zero(dr);
-        Ok(Suffix::new(self.finish_no_suffix(dr, instance)?, zero))
+        Ok(WithSuffix::new(self.finish_no_suffix(dr, instance)?, zero))
     }
 
-    /// Finish building the output without wrapping in Suffix.
+    /// Finish building the output without wrapping in WithSuffix.
     ///
     /// This is useful for circuits that need to include additional data
     /// in their output alongside the unified instance.

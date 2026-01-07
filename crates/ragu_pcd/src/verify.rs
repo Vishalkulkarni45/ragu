@@ -10,14 +10,15 @@ use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
 use ragu_primitives::Element;
 use rand::Rng;
 
-use core::iter::{once, repeat, repeat_n};
+use core::iter::once;
 
 use crate::{
     Application, Pcd, Proof,
-    components::claim_builder::{self, ClaimBuilder, ClaimSource, RxComponent},
+    circuits::stages::native::preamble::ProofInputs,
+    components::claim_builder::{
+        self, ClaimBuilder, ClaimSource, KySource, RxComponent, ky_values,
+    },
     header::Header,
-    internal_circuits::partial_collapse::NUM_UNIFIED_CIRCUITS,
-    internal_circuits::stages::native::preamble::ProofInputs,
 };
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
@@ -72,13 +73,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         // Check all revdot claims.
         let revdot_claims = {
-            let ky_values = once(pcd.proof.ab.c)
-                .chain(once(application_ky))
-                .chain(once(unified_bridge_ky))
-                .chain(repeat_n(unified_ky, NUM_UNIFIED_CIRCUITS))
-                .chain(repeat(C::CircuitField::ZERO));
+            let ky_source = SingleProofKySource {
+                raw_c: pcd.proof.ab.c,
+                application_ky,
+                unified_bridge_ky,
+                unified_ky,
+            };
 
-            ky_values
+            ky_values(&ky_source)
                 .zip(builder.a.iter().zip(builder.b.iter()))
                 .all(|(ky, (a, b))| a.revdot(b) == ky)
         };
@@ -120,5 +122,37 @@ impl<'rx, C: Cycle, R: Rank> ClaimSource for SingleProofSource<'rx, C, R> {
 
     fn app_circuits(&self) -> impl Iterator<Item = Self::AppCircuitId> {
         core::iter::once(self.proof.application.circuit_id)
+    }
+}
+
+/// Source for k(y) values for single-proof verification.
+struct SingleProofKySource<F> {
+    raw_c: F,
+    application_ky: F,
+    unified_bridge_ky: F,
+    unified_ky: F,
+}
+
+impl<F: Field> KySource for SingleProofKySource<F> {
+    type Ky = F;
+
+    fn raw_c(&self) -> impl Iterator<Item = F> {
+        once(self.raw_c)
+    }
+
+    fn application_ky(&self) -> impl Iterator<Item = F> {
+        once(self.application_ky)
+    }
+
+    fn unified_bridge_ky(&self) -> impl Iterator<Item = F> {
+        once(self.unified_bridge_ky)
+    }
+
+    fn unified_ky(&self) -> impl Iterator<Item = F> + Clone {
+        once(self.unified_ky)
+    }
+
+    fn zero(&self) -> F {
+        F::ZERO
     }
 }

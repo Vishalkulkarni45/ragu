@@ -1,10 +1,7 @@
 //! Merging operations defined for the proof-carrying data computational graph.
 
-pub(crate) mod adapter;
 mod encoder;
-pub(crate) mod padded;
-pub(crate) mod rerandomize;
-pub(crate) mod trivial;
+pub(crate) mod internal;
 
 use arithmetic::Cycle;
 use ragu_circuits::mesh::CircuitIndex;
@@ -20,7 +17,7 @@ pub use encoder::{Encoded, Encoder};
 #[derive(Copy, Clone)]
 #[repr(usize)]
 pub(crate) enum InternalStepIndex {
-    /// Internal step for [`self::rerandomize`].
+    /// Internal step for [`internal::rerandomize`].
     Rerandomize = 0,
     /// Internal step that produces a valid trivial proof for rerandomization.
     Trivial = 1,

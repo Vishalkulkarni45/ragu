@@ -9,10 +9,10 @@
 
 extern crate alloc;
 
+mod circuits;
 mod components;
 mod fuse;
 pub mod header;
-mod internal_circuits;
 mod proof;
 pub mod step;
 mod verify;
@@ -30,7 +30,7 @@ use core::{any::TypeId, cell::OnceCell, marker::PhantomData};
 
 use header::Header;
 pub use proof::{Pcd, Proof};
-use step::{Step, adapter::Adapter};
+use step::{Step, internal::adapter::Adapter};
 
 /// Builder for an [`Application`] for proof-carrying data.
 pub struct ApplicationBuilder<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize> {
@@ -105,22 +105,22 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
             self.circuit_mesh =
                 self.circuit_mesh
                     .register_circuit(Adapter::<C, _, R, HEADER_SIZE>::new(
-                        step::rerandomize::Rerandomize::<()>::new(),
+                        step::internal::rerandomize::Rerandomize::<()>::new(),
                     ))?;
 
             self.circuit_mesh =
                 self.circuit_mesh
                     .register_circuit(Adapter::<C, _, R, HEADER_SIZE>::new(
-                        step::trivial::Trivial::new(),
+                        step::internal::trivial::Trivial::new(),
                     ))?;
         }
 
         // Then, insert all of the internal circuits used for recursion plumbing.
         {
             let (total_circuits, log2_circuits) =
-                internal_circuits::total_circuit_counts(self.num_application_steps);
+                circuits::total_circuit_counts(self.num_application_steps);
 
-            self.circuit_mesh = internal_circuits::register_all::<C, R, HEADER_SIZE>(
+            self.circuit_mesh = circuits::register_all::<C, R, HEADER_SIZE>(
                 self.circuit_mesh,
                 params,
                 log2_circuits,
@@ -202,7 +202,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     /// is not random.
     fn seeded_trivial_pcd<'source, RNG: Rng>(&self, rng: &mut RNG) -> Pcd<'source, C, R, ()> {
         let proof = self.seeded_trivial.get_or_init(|| {
-            self.seed(rng, step::trivial::Trivial::new(), ())
+            self.seed(rng, step::internal::trivial::Trivial::new(), ())
                 .expect("seeded trivial seed should not fail")
                 .0
         });
@@ -228,7 +228,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let seeded_trivial = self.seeded_trivial_pcd(rng);
         let rerandomized_proof = self.fuse(
             rng,
-            step::rerandomize::Rerandomize::new(),
+            step::internal::rerandomize::Rerandomize::new(),
             (),
             pcd,
             seeded_trivial,

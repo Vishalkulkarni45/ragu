@@ -16,9 +16,9 @@ use ragu_primitives::Element;
 
 use core::marker::PhantomData;
 
-use crate::{Proof, internal_circuits::NUM_INTERNAL_CIRCUITS};
+use crate::{Proof, circuits::NUM_INTERNAL_CIRCUITS};
 
-pub use crate::internal_circuits::InternalCircuitIndex::QueryStage as STAGING_ID;
+pub(crate) use crate::circuits::InternalCircuitIndex::QueryStage as STAGING_ID;
 
 /// Witness for a polynomial evaluated at both x and xz.
 pub struct XzQueryWitness<T> {
@@ -99,10 +99,11 @@ impl<'dr, D: Driver<'dr>> XzQuery<'dr, D> {
 /// Pre-computed evaluations of mesh_xy at each internal circuit's omega^j.
 pub struct FixedMeshWitness<F> {
     pub preamble_stage: F,
-    pub error_m_stage: F,
     pub error_n_stage: F,
+    pub error_m_stage: F,
     pub query_stage: F,
     pub eval_stage: F,
+    pub error_m_final_staged: F,
     pub error_n_final_staged: F,
     pub eval_final_staged: F,
     pub hashes_1_circuit: F,
@@ -116,10 +117,10 @@ pub struct FixedMeshWitness<F> {
 pub struct ChildEvaluationsWitness<F> {
     /// Preamble stage rx polynomial evaluations.
     pub preamble: XzQueryWitness<F>,
-    /// Error M stage rx polynomial evaluations.
-    pub error_m: XzQueryWitness<F>,
     /// Error N stage rx polynomial evaluations.
     pub error_n: XzQueryWitness<F>,
+    /// Error M stage rx polynomial evaluations.
+    pub error_m: XzQueryWitness<F>,
     /// Query stage rx polynomial evaluations.
     pub query: XzQueryWitness<F>,
     /// Eval stage rx polynomial evaluations.
@@ -140,12 +141,12 @@ pub struct ChildEvaluationsWitness<F> {
     pub a_poly_at_x: F,
     /// B polynomial evaluation at x.
     pub b_poly_at_x: F,
-    /// Old mesh_xy polynomial evaluation at new w.
-    pub old_mesh_xy_at_new_w: F,
-    /// New mesh_xy polynomial evaluation at old circuit_id.
-    pub new_mesh_xy_at_old_circuit_id: F,
-    /// New mesh_wy polynomial evaluation at old x.
-    pub new_mesh_wy_at_old_x: F,
+    /// Child's mesh_xy polynomial evaluated at current step's w.
+    pub child_mesh_xy_at_current_w: F,
+    /// Current mesh_xy polynomial evaluated at child's circuit_id.
+    pub current_mesh_xy_at_child_circuit_id: F,
+    /// Current mesh_wy polynomial evaluated at child's x.
+    pub current_mesh_wy_at_child_x: F,
 }
 
 impl<F: PrimeField> ChildEvaluationsWitness<F> {
@@ -176,9 +177,10 @@ impl<F: PrimeField> ChildEvaluationsWitness<F> {
             compute_v: XzQueryWitness::eval(x, xz, |pt| proof.circuits.compute_v_rx.eval(pt)),
             a_poly_at_x: proof.ab.a_poly.eval(x),
             b_poly_at_x: proof.ab.b_poly.eval(x),
-            old_mesh_xy_at_new_w: proof.query.mesh_xy_poly.eval(w),
-            new_mesh_xy_at_old_circuit_id: mesh_xy.eval(proof.application.circuit_id.omega_j()),
-            new_mesh_wy_at_old_x: mesh_wy.eval(proof.challenges.x),
+            child_mesh_xy_at_current_w: proof.query.mesh_xy_poly.eval(w),
+            current_mesh_xy_at_child_circuit_id: mesh_xy
+                .eval(proof.application.circuit_id.omega_j()),
+            current_mesh_wy_at_child_x: mesh_wy.eval(proof.challenges.x),
         }
     }
 }
@@ -201,13 +203,15 @@ pub struct FixedMeshEvaluations<'dr, D: Driver<'dr>> {
     #[ragu(gadget)]
     pub preamble_stage: Element<'dr, D>,
     #[ragu(gadget)]
-    pub error_m_stage: Element<'dr, D>,
-    #[ragu(gadget)]
     pub error_n_stage: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub error_m_stage: Element<'dr, D>,
     #[ragu(gadget)]
     pub query_stage: Element<'dr, D>,
     #[ragu(gadget)]
     pub eval_stage: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub error_m_final_staged: Element<'dr, D>,
     #[ragu(gadget)]
     pub error_n_final_staged: Element<'dr, D>,
     #[ragu(gadget)]
@@ -229,10 +233,14 @@ impl<'dr, D: Driver<'dr>> FixedMeshEvaluations<'dr, D> {
     pub fn alloc(dr: &mut D, witness: DriverValue<D, &FixedMeshWitness<D::F>>) -> Result<Self> {
         Ok(FixedMeshEvaluations {
             preamble_stage: Element::alloc(dr, witness.view().map(|w| w.preamble_stage))?,
-            error_m_stage: Element::alloc(dr, witness.view().map(|w| w.error_m_stage))?,
             error_n_stage: Element::alloc(dr, witness.view().map(|w| w.error_n_stage))?,
+            error_m_stage: Element::alloc(dr, witness.view().map(|w| w.error_m_stage))?,
             query_stage: Element::alloc(dr, witness.view().map(|w| w.query_stage))?,
             eval_stage: Element::alloc(dr, witness.view().map(|w| w.eval_stage))?,
+            error_m_final_staged: Element::alloc(
+                dr,
+                witness.view().map(|w| w.error_m_final_staged),
+            )?,
             error_n_final_staged: Element::alloc(
                 dr,
                 witness.view().map(|w| w.error_n_final_staged),
@@ -253,11 +261,8 @@ impl<'dr, D: Driver<'dr>> FixedMeshEvaluations<'dr, D> {
     }
 
     /// Look up the mesh evaluation for the given internal circuit index.
-    pub fn circuit_mesh(
-        &self,
-        id: crate::internal_circuits::InternalCircuitIndex,
-    ) -> &Element<'dr, D> {
-        use crate::internal_circuits::InternalCircuitIndex::*;
+    pub fn circuit_mesh(&self, id: crate::circuits::InternalCircuitIndex) -> &Element<'dr, D> {
+        use crate::circuits::InternalCircuitIndex::*;
         match id {
             Hashes1Circuit => &self.hashes_1_circuit,
             Hashes2Circuit => &self.hashes_2_circuit,
@@ -269,6 +274,7 @@ impl<'dr, D: Driver<'dr>> FixedMeshEvaluations<'dr, D> {
             ErrorNStage => &self.error_n_stage,
             QueryStage => &self.query_stage,
             EvalStage => &self.eval_stage,
+            ErrorMFinalStaged => &self.error_m_final_staged,
             ErrorNFinalStaged => &self.error_n_final_staged,
             EvalFinalStaged => &self.eval_final_staged,
         }
@@ -281,12 +287,12 @@ pub struct ChildEvaluations<'dr, D: Driver<'dr>> {
     /// Preamble stage rx polynomial evaluations.
     #[ragu(gadget)]
     pub preamble: XzQuery<'dr, D>,
-    /// Error M stage rx polynomial evaluations.
-    #[ragu(gadget)]
-    pub error_m: XzQuery<'dr, D>,
     /// Error N stage rx polynomial evaluations.
     #[ragu(gadget)]
     pub error_n: XzQuery<'dr, D>,
+    /// Error M stage rx polynomial evaluations.
+    #[ragu(gadget)]
+    pub error_m: XzQuery<'dr, D>,
     /// Query stage rx polynomial evaluations.
     #[ragu(gadget)]
     pub query: XzQuery<'dr, D>,
@@ -317,15 +323,15 @@ pub struct ChildEvaluations<'dr, D: Driver<'dr>> {
     /// B polynomial evaluation at x.
     #[ragu(gadget)]
     pub b_poly_at_x: Element<'dr, D>,
-    /// Old mesh_xy polynomial evaluation at new w.
+    /// Child's mesh_xy polynomial evaluated at current step's w.
     #[ragu(gadget)]
-    pub old_mesh_xy_at_new_w: Element<'dr, D>,
-    /// New mesh_xy polynomial evaluation at old circuit_id.
+    pub child_mesh_xy_at_current_w: Element<'dr, D>,
+    /// Current mesh_xy polynomial evaluated at child's circuit_id.
     #[ragu(gadget)]
-    pub new_mesh_xy_at_old_circuit_id: Element<'dr, D>,
-    /// New mesh_wy polynomial evaluation at old x.
+    pub current_mesh_xy_at_child_circuit_id: Element<'dr, D>,
+    /// Current mesh_wy polynomial evaluated at child's x.
     #[ragu(gadget)]
-    pub new_mesh_wy_at_old_x: Element<'dr, D>,
+    pub current_mesh_wy_at_child_x: Element<'dr, D>,
 }
 
 impl<'dr, D: Driver<'dr>> ChildEvaluations<'dr, D> {
@@ -348,17 +354,19 @@ impl<'dr, D: Driver<'dr>> ChildEvaluations<'dr, D> {
             compute_v: XzQuery::alloc(dr, witness.view().map(|w| &w.compute_v))?,
             a_poly_at_x: Element::alloc(dr, witness.view().map(|w| w.a_poly_at_x))?,
             b_poly_at_x: Element::alloc(dr, witness.view().map(|w| w.b_poly_at_x))?,
-            old_mesh_xy_at_new_w: Element::alloc(
+            child_mesh_xy_at_current_w: Element::alloc(
                 dr,
-                witness.view().map(|w| w.old_mesh_xy_at_new_w),
+                witness.view().map(|w| w.child_mesh_xy_at_current_w),
             )?,
-            new_mesh_xy_at_old_circuit_id: Element::alloc(
+            current_mesh_xy_at_child_circuit_id: Element::alloc(
                 dr,
-                witness.view().map(|w| w.new_mesh_xy_at_old_circuit_id),
+                witness
+                    .view()
+                    .map(|w| w.current_mesh_xy_at_child_circuit_id),
             )?,
-            new_mesh_wy_at_old_x: Element::alloc(
+            current_mesh_wy_at_child_x: Element::alloc(
                 dr,
-                witness.view().map(|w| w.new_mesh_wy_at_old_x),
+                witness.view().map(|w| w.current_mesh_wy_at_child_x),
             )?,
         })
     }
@@ -423,7 +431,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> staging::Stage<C::CircuitField
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal_circuits::stages::native::tests::{HEADER_SIZE, R, assert_stage_values};
+    use crate::circuits::stages::native::tests::{HEADER_SIZE, R, assert_stage_values};
     use ragu_pasta::Pasta;
 
     #[test]

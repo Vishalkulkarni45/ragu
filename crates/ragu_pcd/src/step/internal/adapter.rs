@@ -14,7 +14,8 @@ use ragu_primitives::{
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use super::{Encoder, Header, Step};
+use super::super::{Encoder, Step};
+use crate::Header;
 
 /// Represents triple a length determined at compile time.
 pub struct TripleConstLen<const N: usize>;

@@ -9,23 +9,23 @@ use ragu_primitives::{
     io::{Buffer, Write},
 };
 
-/// Compositional gadget that appends a suffix element to another gadget during
-/// serialization.
+/// Compositional gadget that wraps another gadget with a suffix element appended
+/// during serialization.
 #[derive(Gadget)]
-pub struct Suffix<'dr, D: Driver<'dr>, G: GadgetKind<D::F>> {
+pub struct WithSuffix<'dr, D: Driver<'dr>, G: GadgetKind<D::F>> {
     #[ragu(gadget)]
     inner: G::Rebind<'dr, D>,
     #[ragu(gadget)]
     suffix: Element<'dr, D>,
 }
 
-impl<'dr, D: Driver<'dr>, G: GadgetKind<D::F>> Suffix<'dr, D, G> {
+impl<'dr, D: Driver<'dr>, G: GadgetKind<D::F>> WithSuffix<'dr, D, G> {
     pub fn new(inner: G::Rebind<'dr, D>, suffix: Element<'dr, D>) -> Self {
-        Suffix { inner, suffix }
+        WithSuffix { inner, suffix }
     }
 }
 
-impl<F: Field, K: GadgetKind<F> + Write<F>> Write<F> for Kind![F; @Suffix<'_, _, K>] {
+impl<F: Field, K: GadgetKind<F> + Write<F>> Write<F> for Kind![F; @WithSuffix<'_, _, K>] {
     fn write_gadget<'dr, D: Driver<'dr, F = F>, B: Buffer<'dr, D>>(
         this: &Self::Rebind<'dr, D>,
         dr: &mut D,

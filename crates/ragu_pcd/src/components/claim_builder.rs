@@ -11,14 +11,25 @@
 //! - [`build_claims`]: Orchestrates claim building in unified order
 
 use alloc::{borrow::Cow, vec::Vec};
+use core::iter::{once, repeat_n};
 use ff::PrimeField;
 use ragu_circuits::{
     mesh::{CircuitIndex, Mesh},
     polynomials::{Rank, structured},
 };
 use ragu_core::Result;
+use ragu_core::drivers::Driver;
+use ragu_primitives::Element;
 
-use crate::internal_circuits::{self, InternalCircuitIndex};
+use crate::circuits::{self, InternalCircuitIndex};
+
+/// Number of circuits that use the unified k(y) value per proof.
+///
+/// This is the count of internal circuits (hashes_1, hashes_2, partial_collapse,
+/// full_collapse) that share the same unified k(y) value. The unified_ky iterator
+/// from [`KySource`] is repeated this many times in [`ky_values`].
+// TODO: this constant seems brittle because it may vary between the two fields.
+pub const NUM_UNIFIED_CIRCUITS: usize = 4;
 
 /// Enum identifying which rx polynomial to retrieve from a proof.
 #[derive(Clone, Copy, Debug)]
@@ -129,18 +140,12 @@ where
         .zip(source.rx(PreambleStage))
         .zip(source.rx(ErrorNStage))
     {
-        processor.internal_circuit(
-            internal_circuits::hashes_1::CIRCUIT_ID,
-            [h1, pre, en].into_iter(),
-        );
+        processor.internal_circuit(circuits::hashes_1::CIRCUIT_ID, [h1, pre, en].into_iter());
     }
 
     // hashes_2: needs Hashes2 + ErrorNStage for each proof
     for (h2, en) in source.rx(Hashes2).zip(source.rx(ErrorNStage)) {
-        processor.internal_circuit(
-            internal_circuits::hashes_2::CIRCUIT_ID,
-            [h2, en].into_iter(),
-        );
+        processor.internal_circuit(circuits::hashes_2::CIRCUIT_ID, [h2, en].into_iter());
     }
 
     // partial_collapse: needs PartialCollapse + PreambleStage + ErrorMStage + ErrorNStage
@@ -151,21 +156,20 @@ where
         .zip(source.rx(ErrorNStage))
     {
         processor.internal_circuit(
-            internal_circuits::partial_collapse::CIRCUIT_ID,
+            circuits::partial_collapse::CIRCUIT_ID,
             [pc, pre, em, en].into_iter(),
         );
     }
 
-    // full_collapse: needs FullCollapse + PreambleStage + ErrorMStage + ErrorNStage
-    for (((fc, pre), em), en) in source
+    // full_collapse: needs FullCollapse + PreambleStage + ErrorNStage (no ErrorMStage)
+    for ((fc, pre), en) in source
         .rx(FullCollapse)
         .zip(source.rx(PreambleStage))
-        .zip(source.rx(ErrorMStage))
         .zip(source.rx(ErrorNStage))
     {
         processor.internal_circuit(
-            internal_circuits::full_collapse::CIRCUIT_ID,
-            [fc, pre, em, en].into_iter(),
+            circuits::full_collapse::CIRCUIT_ID,
+            [fc, pre, en].into_iter(),
         );
     }
 
@@ -176,21 +180,23 @@ where
         .zip(source.rx(QueryStage))
         .zip(source.rx(EvalStage))
     {
-        processor.internal_circuit(
-            internal_circuits::compute_v::CIRCUIT_ID,
-            [cv, pre, q, e].into_iter(),
-        );
+        processor.internal_circuit(circuits::compute_v::CIRCUIT_ID, [cv, pre, q, e].into_iter());
     }
 
     // Stages (aggregated: collect all proofs' rxs together)
 
-    // ErrorNFinalStaged: all hashes and collapse rxs
+    // ErrorMFinalStaged: only partial_collapse uses error_m as final stage
+    processor.stage(
+        InternalCircuitIndex::ErrorMFinalStaged,
+        source.rx(PartialCollapse),
+    )?;
+
+    // ErrorNFinalStaged: hashes_1, hashes_2, full_collapse use error_n as final stage
     processor.stage(
         InternalCircuitIndex::ErrorNFinalStaged,
         source
             .rx(Hashes1)
             .chain(source.rx(Hashes2))
-            .chain(source.rx(PartialCollapse))
             .chain(source.rx(FullCollapse)),
     )?;
 
@@ -199,27 +205,27 @@ where
 
     // Native stages (aggregated across all proofs)
     processor.stage(
-        internal_circuits::stages::native::preamble::STAGING_ID,
+        circuits::stages::native::preamble::STAGING_ID,
         source.rx(PreambleStage),
     )?;
 
     processor.stage(
-        internal_circuits::stages::native::error_m::STAGING_ID,
+        circuits::stages::native::error_m::STAGING_ID,
         source.rx(ErrorMStage),
     )?;
 
     processor.stage(
-        internal_circuits::stages::native::error_n::STAGING_ID,
+        circuits::stages::native::error_n::STAGING_ID,
         source.rx(ErrorNStage),
     )?;
 
     processor.stage(
-        internal_circuits::stages::native::query::STAGING_ID,
+        circuits::stages::native::query::STAGING_ID,
         source.rx(QueryStage),
     )?;
 
     processor.stage(
-        internal_circuits::stages::native::eval::STAGING_ID,
+        circuits::stages::native::eval::STAGING_ID,
         source.rx(EvalStage),
     )?;
 
@@ -335,5 +341,77 @@ impl<'m, 'rx, F: PrimeField, R: Rank>
         self.a.push(a);
         self.b.push(Cow::Owned(sy));
         Ok(())
+    }
+}
+
+/// Trait for providing k(y) values for claim verification.
+pub trait KySource {
+    /// The k(y) value type.
+    type Ky: Clone;
+
+    /// Iterator over raw_c values (the c from AB proof / preamble unified).
+    fn raw_c(&self) -> impl Iterator<Item = Self::Ky>;
+
+    /// Iterator over application circuit k(y) values.
+    fn application_ky(&self) -> impl Iterator<Item = Self::Ky>;
+
+    /// Iterator over unified bridge k(y) values.
+    fn unified_bridge_ky(&self) -> impl Iterator<Item = Self::Ky>;
+
+    /// Base iterator over unified k(y) values (will be repeated [`NUM_UNIFIED_CIRCUITS`] times).
+    /// The `+ Clone` bound is required for `repeat_n` in [`ky_values`].
+    fn unified_ky(&self) -> impl Iterator<Item = Self::Ky> + Clone;
+
+    /// The zero value for stage claims.
+    fn zero(&self) -> Self::Ky;
+}
+
+/// Build an iterator over k(y) values in claim order.
+///
+/// Chains the k(y) sources in the order required by [`build_claims`],
+/// with `unified_ky` repeated [`NUM_UNIFIED_CIRCUITS`] times,
+/// followed by infinite zeros for stage claims.
+pub fn ky_values<S: KySource>(source: &S) -> impl Iterator<Item = S::Ky> {
+    source
+        .raw_c()
+        .chain(source.application_ky())
+        .chain(source.unified_bridge_ky())
+        .chain(repeat_n(source.unified_ky(), NUM_UNIFIED_CIRCUITS).flatten())
+        .chain(core::iter::repeat(source.zero()))
+}
+
+pub struct TwoProofKySource<'dr, D: Driver<'dr>> {
+    pub left_raw_c: Element<'dr, D>,
+    pub right_raw_c: Element<'dr, D>,
+    pub left_app: Element<'dr, D>,
+    pub right_app: Element<'dr, D>,
+    pub left_bridge: Element<'dr, D>,
+    pub right_bridge: Element<'dr, D>,
+    pub left_unified: Element<'dr, D>,
+    pub right_unified: Element<'dr, D>,
+    pub zero: Element<'dr, D>,
+}
+
+impl<'dr, D: Driver<'dr>> KySource for TwoProofKySource<'dr, D> {
+    type Ky = Element<'dr, D>;
+
+    fn raw_c(&self) -> impl Iterator<Item = Element<'dr, D>> {
+        once(self.left_raw_c.clone()).chain(once(self.right_raw_c.clone()))
+    }
+
+    fn application_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
+        once(self.left_app.clone()).chain(once(self.right_app.clone()))
+    }
+
+    fn unified_bridge_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
+        once(self.left_bridge.clone()).chain(once(self.right_bridge.clone()))
+    }
+
+    fn unified_ky(&self) -> impl Iterator<Item = Element<'dr, D>> + Clone {
+        once(self.left_unified.clone()).chain(once(self.right_unified.clone()))
+    }
+
+    fn zero(&self) -> Element<'dr, D> {
+        self.zero.clone()
     }
 }

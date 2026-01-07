@@ -9,7 +9,7 @@ use ragu_core::{
     drivers::{Driver, DriverValue},
 };
 
-use super::{Encoded, Encoder, Index, Step};
+use super::super::{Encoded, Encoder, Index, Step};
 
 pub(crate) use crate::step::InternalStepIndex::Trivial as INTERNAL_ID;
 

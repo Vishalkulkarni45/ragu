@@ -15,11 +15,10 @@ use ragu_primitives::{
 
 use alloc::vec::Vec;
 
-use super::{Header, padded};
+use super::{Header, internal::padded};
 
 /// A helper passed to step synthesis that provides access to the header data
-/// for an input, along with methods to encode it into either a header gadget
-/// or a raw serialized header of fixed length `HEADER_SIZE`.
+/// for an input, along with methods to encode it into a header gadget.
 pub struct Encoder<'dr, 'source: 'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> {
     witness: DriverValue<D, H::Data<'source>>,
 }
@@ -33,52 +32,57 @@ impl<'dr, 'source: 'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usiz
     }
 }
 
-/// The result of encoding a header within a step.
-///
-/// This can either be a concrete gadget encoding (`Gadget`) or a raw
-/// fixed-length serialized form (`Raw`) padded to `HEADER_SIZE`.
-pub enum Encoded<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> {
-    /// A gadget form of the header produced by `Header::encode`.
+enum EncodedInner<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> {
     Gadget(<H::Output as GadgetKind<D::F>>::Rebind<'dr, D>),
-    /// A fixed-length serialized header (including suffix), padded to `HEADER_SIZE`.
     Raw(FixedVec<Element<'dr, D>, ConstLen<HEADER_SIZE>>),
+}
+
+/// The result of encoding a header within a step.
+pub struct Encoded<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize>(
+    EncodedInner<'dr, D, H, HEADER_SIZE>,
+);
+
+impl<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> Clone
+    for EncodedInner<'dr, D, H, HEADER_SIZE>
+{
+    fn clone(&self) -> Self {
+        match self {
+            EncodedInner::Gadget(gadget) => EncodedInner::Gadget(gadget.clone()),
+            EncodedInner::Raw(raw) => EncodedInner::Raw(raw.clone()),
+        }
+    }
 }
 
 impl<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> Clone
     for Encoded<'dr, D, H, HEADER_SIZE>
 {
     fn clone(&self) -> Self {
-        match self {
-            Encoded::Gadget(gadget) => Encoded::Gadget(gadget.clone()),
-            Encoded::Raw(raw) => Encoded::Raw(raw.clone()),
-        }
+        Encoded(self.0.clone())
     }
 }
 
 impl<'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HEADER_SIZE: usize>
     Encoded<'dr, D, H, HEADER_SIZE>
 {
-    /// Create an `Encoded::Gadget` from a header gadget value.
+    /// Create an encoded header from a gadget value.
     pub fn from_gadget(gadget: <H::Output as GadgetKind<D::F>>::Rebind<'dr, D>) -> Self {
-        Encoded::Gadget(gadget)
+        Encoded(EncodedInner::Gadget(gadget))
     }
 
-    /// Returns a reference to the gadget if this is a `Gadget` encoding.
+    /// Returns a reference to the underlying gadget.
     pub fn as_gadget(&self) -> &<H::Output as GadgetKind<D::F>>::Rebind<'dr, D> {
-        match self {
-            Encoded::Gadget(g) => g,
-            Encoded::Raw(_) => unreachable!(
-                "as_gadget should not be called on a raw encoding; raw encodings are only used internally"
-            ),
+        match &self.0 {
+            EncodedInner::Gadget(g) => g,
+            EncodedInner::Raw(_) => unreachable!(),
         }
     }
 
     pub(crate) fn write(self, dr: &mut D, buf: &mut Vec<Element<'dr, D>>) -> Result<()> {
-        match self {
-            Encoded::Gadget(gadget) => {
+        match self.0 {
+            EncodedInner::Gadget(gadget) => {
                 padded::for_header::<H, HEADER_SIZE, _>(dr, gadget)?.write(dr, buf)?
             }
-            Encoded::Raw(raw) => {
+            EncodedInner::Raw(raw) => {
                 buf.extend(raw.into_inner());
             }
         }
@@ -108,6 +112,6 @@ impl<'dr, 'source: 'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HE
         let mut raw = Vec::with_capacity(HEADER_SIZE);
         gadget.write(&mut emulator, &mut Pipe::new(dr, &mut raw))?;
 
-        Ok(Encoded::Raw(FixedVec::try_from(raw)?))
+        Ok(Encoded(EncodedInner::Raw(FixedVec::try_from(raw)?)))
     }
 }

@@ -11,8 +11,8 @@ use ragu_primitives::{
 
 use core::marker::PhantomData;
 
-use super::Header;
-use crate::components::suffix::Suffix;
+use crate::Header;
+use crate::components::suffix::WithSuffix;
 
 /// A header gadget padded to a fixed size with a suffix element appended.
 ///
@@ -21,29 +21,38 @@ use crate::components::suffix::Suffix;
 /// - Then, zero padding to fill up to `HEADER_SIZE - 1` elements
 /// - Finally, the suffix element at position `HEADER_SIZE - 1`
 #[derive(Gadget, Write)]
-pub struct Padded<'dr, D: Driver<'dr>, G: GadgetKind<D::F> + Write<D::F>, const HEADER_SIZE: usize>
-{
+pub(crate) struct Padded<
+    'dr,
+    D: Driver<'dr>,
+    G: GadgetKind<D::F> + Write<D::F>,
+    const HEADER_SIZE: usize,
+> {
     #[ragu(gadget)]
-    inner: Suffix<'dr, D, Kind![D::F; PaddedContent<'_, _, G, HEADER_SIZE>]>,
+    inner: WithSuffix<'dr, D, Kind![D::F; PaddedContent<'_, _, G, HEADER_SIZE>]>,
 }
 
 /// Constructs a [`Padded`] gadget representing a gadget for a [`Header`] padded
 /// to some fixed size `HEADER_SIZE` encoding, including the header suffix.
-pub fn for_header<'dr, H: Header<D::F>, const HEADER_SIZE: usize, D: Driver<'dr, F: PrimeField>>(
+pub(crate) fn for_header<
+    'dr,
+    H: Header<D::F>,
+    const HEADER_SIZE: usize,
+    D: Driver<'dr, F: PrimeField>,
+>(
     dr: &mut D,
     gadget: <H::Output as GadgetKind<D::F>>::Rebind<'dr, D>,
 ) -> Result<Padded<'dr, D, H::Output, HEADER_SIZE>> {
     let padded_content = PaddedContent { gadget };
     let suffix = Element::constant(dr, D::F::from(H::SUFFIX.get()));
     Ok(Padded {
-        inner: Suffix::new(padded_content, suffix),
+        inner: WithSuffix::new(padded_content, suffix),
     })
 }
 
 /// Inner gadget that writes the header gadget followed by zero padding up to
 /// `HEADER_SIZE - 1` elements (reserving space for the suffix).
 #[derive(Gadget)]
-pub struct PaddedContent<
+pub(crate) struct PaddedContent<
     'dr,
     D: Driver<'dr>,
     G: GadgetKind<D::F> + Write<D::F>,
@@ -124,7 +133,7 @@ mod tests {
     };
 
     use super::Padded;
-    use crate::components::suffix::Suffix;
+    use crate::components::suffix::WithSuffix;
 
     #[derive(Gadget, Write)]
     struct MySillyGadget<'dr, D: Driver<'dr>> {
@@ -148,7 +157,7 @@ mod tests {
                 gadget: gadget.clone(),
             };
             let padded_gadget = Padded::<'_, _, Kind![F; MySillyGadget<'_, _>], 6> {
-                inner: Suffix::new(padded_content, Element::constant(dr, F::from(42u64))),
+                inner: WithSuffix::new(padded_content, Element::constant(dr, F::from(42u64))),
             };
             let mut buffer = vec![];
             padded_gadget.write(dr, &mut buffer)?;
@@ -183,7 +192,7 @@ mod tests {
                 gadget: gadget.clone(),
             };
             let padded_gadget = Padded::<'_, _, Kind![F; MySillyGadget<'_, _>], 4> {
-                inner: Suffix::new(padded_content, Element::constant(dr, F::from(42u64))),
+                inner: WithSuffix::new(padded_content, Element::constant(dr, F::from(42u64))),
             };
             let mut buffer = vec![];
             assert!(padded_gadget.write(dr, &mut buffer).is_err());

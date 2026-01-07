@@ -18,7 +18,7 @@ use ragu_primitives::{
 
 use core::marker::PhantomData;
 
-pub use crate::internal_circuits::InternalCircuitIndex::ErrorNStage as STAGING_ID;
+pub(crate) use crate::circuits::InternalCircuitIndex::ErrorNStage as STAGING_ID;
 
 use crate::components::fold_revdot::{self, ErrorTermsLen};
 
@@ -111,7 +111,7 @@ pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize, FP: fold_revdot::Paramet
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
     staging::Stage<C::CircuitField, R> for Stage<C, R, HEADER_SIZE, FP>
 {
-    type Parent = super::error_m::Stage<C, R, HEADER_SIZE, FP>;
+    type Parent = super::preamble::Stage<C, R, HEADER_SIZE>;
     type Witness<'source> = &'source Witness<C, FP>;
     type OutputKind = Kind![C::CircuitField; Output<'_, _, FP, C::CircuitPoseidon>];
 
@@ -164,7 +164,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal_circuits::stages::native::tests::{
+    use crate::circuits::stages::native::tests::{
         HEADER_SIZE, NativeParameters, R, assert_stage_values,
     };
     use ragu_pasta::Pasta;

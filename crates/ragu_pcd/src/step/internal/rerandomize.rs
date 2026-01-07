@@ -13,7 +13,8 @@ use ragu_core::{
 
 use core::marker::PhantomData;
 
-use super::{Encoded, Encoder, Header, Index, Step};
+use super::super::{Encoded, Encoder, Index, Step};
+use crate::Header;
 
 pub(crate) use crate::step::InternalStepIndex::Rerandomize as INTERNAL_ID;
 
