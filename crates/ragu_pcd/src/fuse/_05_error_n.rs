@@ -20,8 +20,6 @@ use ragu_core::{
 use ragu_primitives::{Element, vec::FixedVec};
 use rand::Rng;
 
-use core::iter::once;
-
 use crate::{
     Application,
     circuits::stages::{
@@ -29,7 +27,7 @@ use crate::{
         native::error_n::{ChildKyValues, KyValues},
     },
     components::{
-        claim_builder::{KySource, ky_values},
+        claim_builder::{TwoProofKySource, ky_values},
         fold_revdot::{self, NativeParameters},
     },
     proof,
@@ -166,42 +164,5 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             a,
             b,
         ))
-    }
-}
-
-/// Source for k(y) values for two-proof fuse operations.
-struct TwoProofKySource<'dr, D: Driver<'dr>> {
-    left_raw_c: Element<'dr, D>,
-    right_raw_c: Element<'dr, D>,
-    left_app: Element<'dr, D>,
-    right_app: Element<'dr, D>,
-    left_bridge: Element<'dr, D>,
-    right_bridge: Element<'dr, D>,
-    left_unified: Element<'dr, D>,
-    right_unified: Element<'dr, D>,
-    zero: Element<'dr, D>,
-}
-
-impl<'dr, D: Driver<'dr>> KySource for TwoProofKySource<'dr, D> {
-    type Ky = Element<'dr, D>;
-
-    fn raw_c(&self) -> impl Iterator<Item = Element<'dr, D>> {
-        once(self.left_raw_c.clone()).chain(once(self.right_raw_c.clone()))
-    }
-
-    fn application_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
-        once(self.left_app.clone()).chain(once(self.right_app.clone()))
-    }
-
-    fn unified_bridge_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
-        once(self.left_bridge.clone()).chain(once(self.right_bridge.clone()))
-    }
-
-    fn unified_ky(&self) -> impl Iterator<Item = Element<'dr, D>> + Clone {
-        once(self.left_unified.clone()).chain(once(self.right_unified.clone()))
-    }
-
-    fn zero(&self) -> Element<'dr, D> {
-        self.zero.clone()
     }
 }

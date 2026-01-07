@@ -11,13 +11,15 @@
 //! - [`build_claims`]: Orchestrates claim building in unified order
 
 use alloc::{borrow::Cow, vec::Vec};
-use core::iter::repeat_n;
+use core::iter::{once, repeat_n};
 use ff::PrimeField;
 use ragu_circuits::{
     mesh::{CircuitIndex, Mesh},
     polynomials::{Rank, structured},
 };
 use ragu_core::Result;
+use ragu_core::drivers::Driver;
+use ragu_primitives::Element;
 
 use crate::circuits::{self, InternalCircuitIndex};
 
@@ -376,4 +378,40 @@ pub fn ky_values<S: KySource>(source: &S) -> impl Iterator<Item = S::Ky> {
         .chain(source.unified_bridge_ky())
         .chain(repeat_n(source.unified_ky(), NUM_UNIFIED_CIRCUITS).flatten())
         .chain(core::iter::repeat(source.zero()))
+}
+
+pub struct TwoProofKySource<'dr, D: Driver<'dr>> {
+    pub left_raw_c: Element<'dr, D>,
+    pub right_raw_c: Element<'dr, D>,
+    pub left_app: Element<'dr, D>,
+    pub right_app: Element<'dr, D>,
+    pub left_bridge: Element<'dr, D>,
+    pub right_bridge: Element<'dr, D>,
+    pub left_unified: Element<'dr, D>,
+    pub right_unified: Element<'dr, D>,
+    pub zero: Element<'dr, D>,
+}
+
+impl<'dr, D: Driver<'dr>> KySource for TwoProofKySource<'dr, D> {
+    type Ky = Element<'dr, D>;
+
+    fn raw_c(&self) -> impl Iterator<Item = Element<'dr, D>> {
+        once(self.left_raw_c.clone()).chain(once(self.right_raw_c.clone()))
+    }
+
+    fn application_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
+        once(self.left_app.clone()).chain(once(self.right_app.clone()))
+    }
+
+    fn unified_bridge_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
+        once(self.left_bridge.clone()).chain(once(self.right_bridge.clone()))
+    }
+
+    fn unified_ky(&self) -> impl Iterator<Item = Element<'dr, D>> + Clone {
+        once(self.left_unified.clone()).chain(once(self.right_unified.clone()))
+    }
+
+    fn zero(&self) -> Element<'dr, D> {
+        self.zero.clone()
+    }
 }

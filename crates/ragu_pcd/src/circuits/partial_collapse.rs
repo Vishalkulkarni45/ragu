@@ -21,7 +21,7 @@ use ragu_core::{
 };
 use ragu_primitives::{Element, vec::FixedVec};
 
-use core::{iter::once, marker::PhantomData};
+use core::marker::PhantomData;
 
 use super::{
     stages::native::{
@@ -30,7 +30,7 @@ use super::{
     unified::{self, OutputBuilder},
 };
 use crate::components::{
-    claim_builder::{KySource, ky_values},
+    claim_builder::{TwoProofKySource, ky_values},
     fold_revdot,
 };
 
@@ -121,7 +121,17 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
 
         // Read k(y) values from error_n stage, plus child c values from
         // preamble. Ordering must match claim_builder.
-        let ky = TwoProofKySource::new::<C, HEADER_SIZE, FP>(dr, &preamble, &error_n);
+        let ky = TwoProofKySource {
+            left_raw_c: preamble.left.unified.c.clone(),
+            right_raw_c: preamble.right.unified.c.clone(),
+            left_app: error_n.left.application.clone(),
+            right_app: error_n.right.application.clone(),
+            left_bridge: error_n.left.unified_bridge.clone(),
+            right_bridge: error_n.right.unified_bridge.clone(),
+            left_unified: error_n.left.unified.clone(),
+            right_unified: error_n.right.unified.clone(),
+            zero: Element::zero(dr),
+        };
         let mut ky = ky_values(&ky);
 
         for (i, error_terms) in error_m.error_terms.iter().enumerate() {
@@ -133,63 +143,5 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         }
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
-    }
-}
-
-/// Source for k(y) values for two-proof circuits.
-struct TwoProofKySource<'dr, D: Driver<'dr>> {
-    left_raw_c: Element<'dr, D>,
-    right_raw_c: Element<'dr, D>,
-    left_app: Element<'dr, D>,
-    right_app: Element<'dr, D>,
-    left_bridge: Element<'dr, D>,
-    right_bridge: Element<'dr, D>,
-    left_unified: Element<'dr, D>,
-    right_unified: Element<'dr, D>,
-    zero: Element<'dr, D>,
-}
-
-impl<'dr, D: Driver<'dr>> TwoProofKySource<'dr, D> {
-    /// Create a new source from preamble and error_n stage outputs.
-    fn new<C: Cycle<CircuitField = D::F>, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>(
-        dr: &mut D,
-        preamble: &native_preamble::Output<'dr, D, C, HEADER_SIZE>,
-        error_n: &native_error_n::Output<'dr, D, FP, C::CircuitPoseidon>,
-    ) -> Self {
-        Self {
-            left_raw_c: preamble.left.unified.c.clone(),
-            right_raw_c: preamble.right.unified.c.clone(),
-            left_app: error_n.left.application.clone(),
-            right_app: error_n.right.application.clone(),
-            left_bridge: error_n.left.unified_bridge.clone(),
-            right_bridge: error_n.right.unified_bridge.clone(),
-            left_unified: error_n.left.unified.clone(),
-            right_unified: error_n.right.unified.clone(),
-            zero: Element::zero(dr),
-        }
-    }
-}
-
-impl<'dr, D: Driver<'dr>> KySource for TwoProofKySource<'dr, D> {
-    type Ky = Element<'dr, D>;
-
-    fn raw_c(&self) -> impl Iterator<Item = Element<'dr, D>> {
-        once(self.left_raw_c.clone()).chain(once(self.right_raw_c.clone()))
-    }
-
-    fn application_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
-        once(self.left_app.clone()).chain(once(self.right_app.clone()))
-    }
-
-    fn unified_bridge_ky(&self) -> impl Iterator<Item = Element<'dr, D>> {
-        once(self.left_bridge.clone()).chain(once(self.right_bridge.clone()))
-    }
-
-    fn unified_ky(&self) -> impl Iterator<Item = Element<'dr, D>> + Clone {
-        once(self.left_unified.clone()).chain(once(self.right_unified.clone()))
-    }
-
-    fn zero(&self) -> Element<'dr, D> {
-        self.zero.clone()
     }
 }
