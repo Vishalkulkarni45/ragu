@@ -179,7 +179,7 @@ pub mod native {
             for<'dr> <S::OutputKind as GadgetKind<F>>::Rebind<'dr, Emulator<Wireless<Empty, F>>>:
                 Gadget<'dr, Emulator<Wireless<Empty, F>>>,
         {
-            let mut emulator = Emulator::<Wireless<Empty, F>>::wireless();
+            let mut emulator = Emulator::counter();
             let output = stage
                 .witness(&mut emulator, Empty)
                 .expect("allocation should succeed");
