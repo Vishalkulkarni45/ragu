@@ -119,7 +119,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let beta = transcript.squeeze(&mut dr)?;
 
         let p = self.compute_p(
-            rng, &beta, &u, &left, &right, &s_prime, &error_m, &ab, &query, &f,
+            &beta, &u, &left, &right, &s_prime, &error_m, &ab, &query, &f,
         )?;
 
         let challenges = proof::Challenges::new(

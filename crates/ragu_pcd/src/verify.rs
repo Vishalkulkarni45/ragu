@@ -89,6 +89,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Check polynomial evaluation claim.
         let p_eval_claim = pcd.proof.p.poly.eval(pcd.proof.challenges.u) == pcd.proof.p.v;
 
+        // Check P commitment corresponds to polynomial and blind.
+        let p_commitment_claim = pcd
+            .proof
+            .p
+            .poly
+            .commit(C::host_generators(self.params), pcd.proof.p.blind)
+            == pcd.proof.p.commitment;
+
         // Check mesh_xy polynomial evaluation at the sampled w.
         // mesh_xy_poly is m(W, x, y) - the mesh evaluated at current x, y, free in W.
         let mesh_xy_claim = {
@@ -103,7 +111,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // - mesh_wx0/wx1: need child proof x challenges (x₀, x₁) which "disappear" in preamble
         // - mesh_wy: interstitial value that will be elided later
 
-        Ok(revdot_claims && p_eval_claim && mesh_xy_claim)
+        Ok(revdot_claims && p_eval_claim && p_commitment_claim && mesh_xy_claim)
     }
 }
 
