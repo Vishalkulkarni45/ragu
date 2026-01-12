@@ -87,12 +87,12 @@ impl Step<C> for LeafStep {
     type Output = ValueHeader; // Outputs a value commitment
 }
 
-// Step 2: Combine step - aggregates two values
-struct CombineStep;
-impl Step<C> for CombineStep {
+// Step 2: DoubleAndAdd step - computes 2*left + right
+struct DoubleAndAddStep;
+impl Step<C> for DoubleAndAddStep {
     type Left = ValueHeader;   // Left child carries a value
     type Right = ValueHeader;  // Right child carries a value
-    type Output = ValueHeader; // Output is their sum
+    type Output = ValueHeader; // Output is 2*left + right
 }
 ```
 
@@ -131,9 +131,13 @@ valid input structure for `seed()` when no real child proofs are available.
 Combines two child proofs using a step's logic:
 
 ```rust
-let (proof, aux) = app.fuse(&mut rng, MyCombineStep { ... }, (), left_pcd, right_pcd)?;
+let (proof, aux) = app.fuse(&mut rng, DoubleAndAddStep, step_witness, left_pcd, right_pcd)?;
 let pcd = proof.carry::<OutputHeader>(aux);
 ```
+
+The `step_witness` parameter provides any additional private data the step needs
+(in our `DoubleAndAddStep` example above, this is just `()` since the step doesn't
+require extra witness data beyond the child proofs).
 
 Within the step's `witness` function, calling `.encode()` on the child encoders
 commits the child proof data to the witness polynomials. Verification of these
@@ -182,7 +186,7 @@ ensures the output proof is unlinkable to the original.
 
 ## Unified Accumulator Structure
 
-Ragu uses an _accumulation scheme_ (similar to [Halo]) to achieve efficient
+Ragu uses an _[accumulation scheme](../protocol/core/accumulation/index.md)_ (similar to [Halo]) to achieve efficient
 recursion. Rather than fully verifying each child proof inside the circuit,
 proofs are _folded_ together deferring expensive verification work while
 accumulating claims that will eventually be checked.
