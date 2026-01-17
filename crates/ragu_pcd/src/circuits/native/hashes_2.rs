@@ -53,7 +53,7 @@
 //! [`nested_f_commitment`]: unified::Output::nested_f_commitment
 //! [$u$]: unified::Output::u
 //! [`nested_eval_commitment`]: unified::Output::nested_eval_commitment
-//! [$\beta$]: unified::Output::beta
+//! [$\beta$]: unified::Output::pre_beta
 //! [`error_n`]: super::stages::error_n
 //! [`WithSuffix`]: crate::components::suffix::WithSuffix
 //! [`Sponge::resume_and_squeeze`]: ragu_primitives::poseidon::Sponge::resume_and_squeeze
@@ -219,15 +219,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         };
         unified_output.u.set(u);
 
-        // Derive beta by absorbing nested_eval_commitment and squeezing
-        let beta = {
+        // Derive pre_beta by absorbing nested_eval_commitment and squeezing
+        let pre_beta = {
             let nested_eval_commitment = unified_output
                 .nested_eval_commitment
                 .get(dr, unified_instance)?;
             nested_eval_commitment.write(dr, &mut sponge)?;
             sponge.squeeze(dr)?
         };
-        unified_output.beta.set(beta);
+        unified_output.pre_beta.set(pre_beta);
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

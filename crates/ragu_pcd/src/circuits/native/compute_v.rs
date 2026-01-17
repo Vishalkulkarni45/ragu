@@ -16,7 +16,8 @@
 //!   (first query receives highest $\alpha$ power)
 //!
 //! ### $v$ computation
-//! - Compute $v = f(u) + \beta \cdot \text{eval}$ using [$\beta$] challenge
+//! - Extract endoscalar from [$\beta$] and compute effective beta via field_scale
+//! - Compute $v = f(u) + \text{effective\_beta} \cdot \text{eval}$
 //! - Set computed [$v$] in unified output, enforcing correctness
 //!
 //! ## Staging
@@ -36,7 +37,7 @@
 //! [`eval`]: super::stages::eval
 //! [$v$]: unified::Output::v
 //! [$\alpha$]: unified::Output::alpha
-//! [$\beta$]: unified::Output::beta
+//! [$\beta$]: unified::Output::pre_beta
 //! [$\mu$]: unified::Output::mu
 //! [$\nu$]: unified::Output::nu
 //! [$\mu'$]: unified::Output::mu_prime
@@ -53,7 +54,7 @@ use ragu_core::{
     gadgets::GadgetKind,
     maybe::Maybe,
 };
-use ragu_primitives::{Element, GadgetExt};
+use ragu_primitives::{Element, Endoscalar, GadgetExt};
 
 use alloc::vec::Vec;
 use core::marker::PhantomData;
@@ -235,9 +236,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
 
             // Step 3: Compute v = f(u) + beta * eval via Horner accumulation.
             // This combines f(u) with the evaluation component polynomials.
+            // First extract endoscalar from pre_beta and compute effective beta.
             let computed_v = {
-                let beta = unified_output.beta.get(dr, unified_instance)?;
-                let mut horner = Horner::new(&beta);
+                let pre_beta = unified_output.pre_beta.get(dr, unified_instance)?;
+                let beta_endo = Endoscalar::extract(dr, pre_beta)?;
+                let effective_beta = beta_endo.field_scale(dr)?;
+                let mut horner = Horner::new(&effective_beta);
                 fu.write(dr, &mut horner)?;
                 eval.write(dr, &mut horner)?;
                 horner.finish(dr)

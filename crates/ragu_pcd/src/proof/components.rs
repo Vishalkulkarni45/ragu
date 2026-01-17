@@ -137,7 +137,8 @@ pub(crate) struct Challenges<C: Cycle> {
     pub(crate) x: C::CircuitField,
     pub(crate) alpha: C::CircuitField,
     pub(crate) u: C::CircuitField,
-    pub(crate) beta: C::CircuitField,
+    /// Pre-endoscalar beta challenge. Effective beta is derived via endoscalar extraction.
+    pub(crate) pre_beta: C::CircuitField,
 }
 
 impl<C: Cycle> Challenges<C> {
@@ -152,7 +153,7 @@ impl<C: Cycle> Challenges<C> {
         x: &Element<'dr, D>,
         alpha: &Element<'dr, D>,
         u: &Element<'dr, D>,
-        beta: &Element<'dr, D>,
+        pre_beta: &Element<'dr, D>,
     ) -> Self
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
@@ -168,7 +169,7 @@ impl<C: Cycle> Challenges<C> {
             x: *x.value().take(),
             alpha: *alpha.value().take(),
             u: *u.value().take(),
-            beta: *beta.value().take(),
+            pre_beta: *pre_beta.value().take(),
         }
     }
 
@@ -184,7 +185,7 @@ impl<C: Cycle> Challenges<C> {
             x: C::CircuitField::ZERO,
             alpha: C::CircuitField::ZERO,
             u: C::CircuitField::ZERO,
-            beta: C::CircuitField::ZERO,
+            pre_beta: C::CircuitField::ZERO,
         }
     }
 }

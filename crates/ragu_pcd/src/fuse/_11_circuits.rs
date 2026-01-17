@@ -51,7 +51,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             nested_f_commitment: f.nested_commitment,
             u: challenges.u,
             nested_eval_commitment: eval.nested_commitment,
-            beta: challenges.beta,
+            pre_beta: challenges.pre_beta,
             v: p.v,
         };
 

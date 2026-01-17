@@ -116,14 +116,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let (eval, eval_witness) =
             self.compute_eval(rng, &u, &left, &right, &s_prime, &error_m, &ab, &query)?;
         Point::constant(&mut dr, eval.nested_commitment)?.write(&mut dr, &mut transcript)?;
-        let beta = transcript.squeeze(&mut dr)?;
+        let pre_beta = transcript.squeeze(&mut dr)?;
 
         let p = self.compute_p(
-            &beta, &u, &left, &right, &s_prime, &error_m, &ab, &query, &f,
+            &pre_beta, &u, &left, &right, &s_prime, &error_m, &ab, &query, &f,
         )?;
 
         let challenges = proof::Challenges::new(
-            &w, &y, &z, &mu, &nu, &mu_prime, &nu_prime, &x, &alpha, &u, &beta,
+            &w, &y, &z, &mu, &nu, &mu_prime, &nu_prime, &x, &alpha, &u, &pre_beta,
         );
 
         let circuits = self.compute_internal_circuits(

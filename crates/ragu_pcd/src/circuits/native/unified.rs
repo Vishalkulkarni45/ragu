@@ -141,9 +141,9 @@ pub struct Output<'dr, D: Driver<'dr>, C: Cycle> {
     #[ragu(gadget)]
     pub nested_eval_commitment: Point<'dr, D, C::NestedCurve>,
 
-    /// Evaluation verification challenge $\beta$.
+    /// Pre-endoscalar beta challenge. Effective beta is derived in compute_v.
     #[ragu(gadget)]
-    pub beta: Element<'dr, D>,
+    pub pre_beta: Element<'dr, D>,
 
     /// Expected evaluation at the challenge point for consistency verification.
     #[ragu(gadget)]
@@ -177,7 +177,7 @@ pub struct Instance<C: Cycle> {
     pub nested_f_commitment: C::NestedCurve,
     pub u: C::CircuitField,
     pub nested_eval_commitment: C::NestedCurve,
-    pub beta: C::CircuitField,
+    pub pre_beta: C::CircuitField,
     pub v: C::CircuitField,
 }
 
@@ -274,7 +274,7 @@ pub struct OutputBuilder<'a, 'dr, D: Driver<'dr>, C: Cycle> {
     pub nested_f_commitment: Slot<'a, 'dr, D, Point<'dr, D, C::NestedCurve>, C>,
     pub u: Slot<'a, 'dr, D, Element<'dr, D>, C>,
     pub nested_eval_commitment: Slot<'a, 'dr, D, Point<'dr, D, C::NestedCurve>, C>,
-    pub beta: Slot<'a, 'dr, D, Element<'dr, D>, C>,
+    pub pre_beta: Slot<'a, 'dr, D, Element<'dr, D>, C>,
     pub v: Slot<'a, 'dr, D, Element<'dr, D>, C>,
 }
 
@@ -318,7 +318,7 @@ impl<'dr, D: Driver<'dr>, C: Cycle> Output<'dr, D, C> {
         let u = Element::alloc(dr, proof.view().map(|p| p.challenges.u))?;
         let nested_eval_commitment =
             Point::alloc(dr, proof.view().map(|p| p.eval.nested_commitment))?;
-        let beta = Element::alloc(dr, proof.view().map(|p| p.challenges.beta))?;
+        let pre_beta = Element::alloc(dr, proof.view().map(|p| p.challenges.pre_beta))?;
         let v = Element::alloc(dr, proof.view().map(|p| p.p.v))?;
 
         Ok(Output {
@@ -341,7 +341,7 @@ impl<'dr, D: Driver<'dr>, C: Cycle> Output<'dr, D, C> {
             nested_f_commitment,
             u,
             nested_eval_commitment,
-            beta,
+            pre_beta,
             v,
         })
     }
@@ -387,7 +387,7 @@ impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, '
             nested_f_commitment: point_slot!(nested_f_commitment),
             u: element_slot!(u),
             nested_eval_commitment: point_slot!(nested_eval_commitment),
-            beta: element_slot!(beta),
+            pre_beta: element_slot!(pre_beta),
             v: element_slot!(v),
         }
     }
@@ -438,7 +438,7 @@ impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, '
             nested_f_commitment: self.nested_f_commitment.take(dr, instance)?,
             u: self.u.take(dr, instance)?,
             nested_eval_commitment: self.nested_eval_commitment.take(dr, instance)?,
-            beta: self.beta.take(dr, instance)?,
+            pre_beta: self.pre_beta.take(dr, instance)?,
             v: self.v.take(dr, instance)?,
         })
     }

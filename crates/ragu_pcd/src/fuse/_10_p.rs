@@ -19,7 +19,7 @@ use ragu_core::{
     drivers::Driver,
     maybe::{Always, Maybe},
 };
-use ragu_primitives::Element;
+use ragu_primitives::{Element, compute_endoscalar, extract_endoscalar};
 
 use crate::{Application, Proof, proof};
 
@@ -50,7 +50,7 @@ impl<C: Cycle, R: Rank> Accumulator<'_, C, R> {
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     pub(super) fn compute_p<'dr, D>(
         &self,
-        beta: &Element<'dr, D>,
+        pre_beta: &Element<'dr, D>,
         u: &Element<'dr, D>,
         left: &Proof<C, R>,
         right: &Proof<C, R>,
@@ -76,13 +76,19 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         //
         // We accumulate polynomial and blind in lock-step, while collecting
         // MSM terms for the commitment computation.
+
+        // Extract endoscalar from pre_beta and compute effective beta
+        let pre_beta_value = *pre_beta.value().take();
+        let beta_endo = extract_endoscalar(pre_beta_value);
+        let effective_beta = compute_endoscalar(beta_endo);
+
         let beta_power = {
             let mut acc: Accumulator<'_, C, R> = Accumulator {
                 poly: &mut poly,
                 blind: &mut blind,
                 msm_scalars: &mut msm_scalars,
                 msm_bases: &mut msm_bases,
-                beta: *beta.value().take(),
+                beta: effective_beta,
                 beta_power: C::CircuitField::ONE,
             };
 
