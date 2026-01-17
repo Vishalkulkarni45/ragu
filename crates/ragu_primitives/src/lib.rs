@@ -33,7 +33,7 @@ use promotion::Demoted;
 
 pub use boolean::{Boolean, multipack};
 pub use element::{Element, multiadd};
-pub use endoscalar::{Endoscalar, compute_endoscalar};
+pub use endoscalar::{Endoscalar, compute_endoscalar, extract_endoscalar};
 pub use point::Point;
 pub use simulator::Simulator;
 

@@ -228,6 +228,26 @@ pub fn compute_endoscalar<F: WithSmallOrderMulGroup<3>>(endo: Uendo) -> F {
     acc
 }
 
+/// Extracts an endoscalar from a random field element.
+///
+/// Given a random output of a secure algebraic hash function, this extracts
+/// `k` bits of "randomness" from the value by checking whether `value + i`
+/// is a quadratic residue for each bit position `i`.
+///
+/// This is the native counterpart to [`Endoscalar::extract`].
+pub fn extract_endoscalar<F: PrimeField>(value: F) -> Uendo {
+    let mut endoscalar = Uendo::from(0u64);
+
+    for i in (0..Uendo::BITS).rev() {
+        endoscalar <<= 1;
+        if (value + F::from(i as u64)).sqrt().into_option().is_some() {
+            endoscalar |= Uendo::from(1u64);
+        }
+    }
+
+    endoscalar
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Element, Endoscalar, Maybe, Point};
@@ -270,23 +290,9 @@ mod tests {
     }
 
     pub fn extract_endoscalar<F: PrimeField>(value: F) -> EndoscalarTest {
-        // Given a random output of a secure algebraic hash function, we can
-        // extract k bits of "randomness" from the value without having to
-        // perform a complete decomposition. Instead, we'll witness k bits where
-        // each bit represents whether or not the value added to a fixed
-        // constant is a quadratic residue. This can be tested easily in the
-        // circuit.
-
-        let mut endoscalar = Uendo::from(0u64);
-
-        for i in (0..Uendo::BITS).rev() {
-            endoscalar <<= 1;
-            if (value + F::from(i as u64)).sqrt().into_option().is_some() {
-                endoscalar |= Uendo::from(1u64);
-            }
+        EndoscalarTest {
+            value: super::extract_endoscalar(value),
         }
-
-        EndoscalarTest { value: endoscalar }
     }
 
     #[test]
