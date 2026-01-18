@@ -12,15 +12,22 @@
 use alloc::vec::Vec;
 use arithmetic::Cycle;
 use core::ops::AddAssign;
-use ragu_circuits::polynomials::{Rank, unstructured};
+use ragu_circuits::{
+    CircuitExt,
+    polynomials::{Rank, unstructured},
+    staging::{StageExt, Staged},
+};
 use ragu_core::{
     Result,
     drivers::Driver,
     maybe::{Always, Maybe},
 };
-use ragu_primitives::{Element, compute_endoscalar, extract_endoscalar};
+use ragu_primitives::{Element, compute_endoscalar, extract_endoscalar, vec::Len};
 
-use crate::components::endoscalar::PointsWitness;
+use crate::components::endoscalar::{
+    EndoscalarStage, EndoscalingStep, EndoscalingStepWitness, NumStepsLen, PointsStage,
+    PointsWitness,
+};
 use crate::proof::NUM_P_COMMITMENTS;
 use crate::{Application, Proof, proof};
 
@@ -177,13 +184,42 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         // Construct commitment via PointsWitness Horner evaluation.
         // Points order: [f.commitment, commitments...] computes β^n·f + β^{n-1}·C₀ + ...
-        let commitment = {
+        let (commitment, endoscalar_rx, points_rx, step_rxs) = {
             let mut points = Vec::with_capacity(NUM_P_COMMITMENTS);
             points.push(f.commitment);
             points.extend_from_slice(&commitments);
 
             let witness = PointsWitness::<C::HostCurve, NUM_P_COMMITMENTS>::new(beta_endo, &points);
-            *witness.interstitials.last().unwrap()
+
+            let endoscalar_rx = <EndoscalarStage as StageExt<C::ScalarField, R>>::rx(beta_endo)?;
+            let points_rx = <PointsStage<C::HostCurve, NUM_P_COMMITMENTS> as StageExt<
+                C::ScalarField,
+                R,
+            >>::rx(witness.clone())?;
+
+            // Create rx polynomials for each endoscaling step circuit
+            let num_steps = NumStepsLen::<NUM_P_COMMITMENTS>::len();
+            let key = self.nested_mesh.get_key();
+            let mut step_rxs = Vec::with_capacity(num_steps);
+            for step in 0..num_steps {
+                let step_circuit = EndoscalingStep::<C::HostCurve, R, NUM_P_COMMITMENTS>::new(step);
+                let staged = Staged::new(step_circuit);
+                let (step_rx, _) = staged.rx::<R>(
+                    EndoscalingStepWitness {
+                        endoscalar: beta_endo,
+                        points: witness.clone(),
+                    },
+                    key,
+                )?;
+                step_rxs.push(step_rx);
+            }
+
+            (
+                *witness.interstitials.last().unwrap(),
+                endoscalar_rx,
+                points_rx,
+                step_rxs,
+            )
         };
 
         let v = poly.eval(*u.value().take());
@@ -193,6 +229,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             blind,
             commitment,
             v,
+            endoscalar_rx,
+            points_rx,
+            step_rxs,
         })
     }
 }
