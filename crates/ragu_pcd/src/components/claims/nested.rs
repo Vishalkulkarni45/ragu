@@ -10,10 +10,7 @@
 use alloc::borrow::Cow;
 
 use ff::PrimeField;
-use ragu_circuits::{
-    mesh::CircuitIndex,
-    polynomials::{Rank, structured},
-};
+use ragu_circuits::polynomials::{Rank, structured};
 use ragu_core::Result;
 
 use super::{Builder, Source};
@@ -21,7 +18,6 @@ use crate::circuits::nested::InternalCircuitIndex;
 
 /// Enum identifying which nested field rx polynomial to retrieve from a proof.
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code)]
 pub enum RxComponent {
     /// EndoscalarStage rx polynomial.
     EndoscalarStage,
@@ -34,10 +30,9 @@ pub enum RxComponent {
 /// Trait for processing nested claim values into accumulated outputs.
 ///
 /// This trait defines how to process rx values from a [`Source`].
-#[allow(dead_code)]
 pub trait Processor<Rx> {
     /// Process an internal circuit claim (EndoscalingStep) - sums rxs then processes.
-    fn internal_circuit(&mut self, step: usize, rxs: impl Iterator<Item = Rx>);
+    fn internal_circuit(&mut self, id: InternalCircuitIndex, rxs: impl Iterator<Item = Rx>);
 
     /// Process a stage claim - aggregates rxs from all proofs.
     fn stage(&mut self, id: InternalCircuitIndex, rxs: impl Iterator<Item = Rx>) -> Result<()>;
@@ -48,12 +43,10 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
 {
     fn internal_circuit(
         &mut self,
-        step: usize,
+        id: InternalCircuitIndex,
         mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
     ) {
-        // EndoscalingStepStart = 3, so step N is at circuit index 3+N
-        let circuit_id =
-            CircuitIndex::new(InternalCircuitIndex::EndoscalingStepStart as usize + step);
+        let circuit_id = id.circuit_index();
 
         let first = rxs.next().expect("must provide at least one rx polynomial");
 
@@ -75,26 +68,10 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
     fn stage(
         &mut self,
         id: InternalCircuitIndex,
-        mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
+        rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
     ) -> Result<()> {
-        let first = rxs.next().expect("must provide at least one rx polynomial");
-
-        let circuit_id = CircuitIndex::new(id as usize);
-        let sy = self.mesh.circuit_y(circuit_id, self.y);
-
-        let a = match rxs.next() {
-            None => Cow::Borrowed(first),
-            Some(second) => Cow::Owned(structured::Polynomial::fold(
-                core::iter::once(first)
-                    .chain(core::iter::once(second))
-                    .chain(rxs),
-                self.z,
-            )),
-        };
-
-        self.a.push(a);
-        self.b.push(Cow::Owned(sy));
-        Ok(())
+        let circuit_id = id.circuit_index();
+        self.stage_impl(circuit_id, rxs)
     }
 }
 
@@ -121,7 +98,10 @@ where
             .zip(source.rx(EndoscalarStage))
             .zip(source.rx(PointsStage))
         {
-            processor.internal_circuit(step, [step_rx, endo_rx, pts_rx].into_iter());
+            processor.internal_circuit(
+                InternalCircuitIndex::EndoscalingStep(step),
+                [step_rx, endo_rx, pts_rx].into_iter(),
+            );
         }
     }
 
@@ -146,7 +126,6 @@ where
 }
 
 /// Trait for providing k(y) values for nested claim verification.
-#[allow(dead_code)]
 pub trait KySource {
     /// The k(y) value type.
     type Ky: Clone;
@@ -166,7 +145,6 @@ pub trait KySource {
 /// Returns:
 /// - `num_circuit_claims` ones (for EndoscalingStep circuit checks)
 /// - Infinite zeros (for stage checks)
-#[allow(dead_code)]
 pub fn ky_values<S: KySource>(source: &S) -> impl Iterator<Item = S::Ky> {
     // Circuit checks: k(y) = 1
     core::iter::repeat_n(source.one(), source.num_circuit_claims())

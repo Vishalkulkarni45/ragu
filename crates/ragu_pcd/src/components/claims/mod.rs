@@ -80,4 +80,28 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Builder<'m, 'rx, F, R> {
         self.a.push(rx);
         self.b.push(Cow::Owned(b));
     }
+
+    /// Shared stage accumulation logic for both native and nested Processor impls.
+    pub(crate) fn stage_impl(
+        &mut self,
+        circuit_id: CircuitIndex,
+        mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
+    ) -> ragu_core::Result<()> {
+        let first = rxs.next().expect("must provide at least one rx polynomial");
+        let sy = self.mesh.circuit_y(circuit_id, self.y);
+
+        let a = match rxs.next() {
+            None => Cow::Borrowed(first),
+            Some(second) => Cow::Owned(structured::Polynomial::fold(
+                core::iter::once(first)
+                    .chain(core::iter::once(second))
+                    .chain(rxs),
+                self.z,
+            )),
+        };
+
+        self.a.push(a);
+        self.b.push(Cow::Owned(sy));
+        Ok(())
+    }
 }

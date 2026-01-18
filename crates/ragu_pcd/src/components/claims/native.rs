@@ -126,26 +126,10 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
     fn stage(
         &mut self,
         id: InternalCircuitIndex,
-        mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
+        rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
     ) -> Result<()> {
-        let first = rxs.next().expect("must provide at least one rx polynomial");
-
         let circuit_id = id.circuit_index(self.num_application_steps);
-        let sy = self.mesh.circuit_y(circuit_id, self.y);
-
-        let a = match rxs.next() {
-            None => Cow::Borrowed(first),
-            Some(second) => Cow::Owned(structured::Polynomial::fold(
-                core::iter::once(first)
-                    .chain(core::iter::once(second))
-                    .chain(rxs),
-                self.z,
-            )),
-        };
-
-        self.a.push(a);
-        self.b.push(Cow::Owned(sy));
-        Ok(())
+        self.stage_impl(circuit_id, rxs)
     }
 }
 

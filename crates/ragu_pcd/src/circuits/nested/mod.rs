@@ -1,7 +1,7 @@
 use arithmetic::Cycle;
 use ragu_circuits::{
     CircuitExt,
-    mesh::MeshBuilder,
+    mesh::{CircuitIndex, MeshBuilder},
     polynomials::Rank,
     staging::{StageExt, Staged},
 };
@@ -14,23 +14,29 @@ use crate::proof::NUM_P_COMMITMENTS;
 /// Index of internal nested circuits registered into the mesh.
 ///
 /// These correspond to the circuit objects registered in [`register_all`].
-/// The `EndoscalingStepStart` variant marks where the dynamically registered
-/// `EndoscalingStep` circuits begin; individual steps can be indexed as
-/// `EndoscalingStepStart as usize + step_index`.
 #[derive(Clone, Copy, Debug)]
-#[repr(usize)]
 pub(crate) enum InternalCircuitIndex {
-    // Stages
-    /// `EndoscalarStage` stage object
-    EndoscalarStage = 0,
-    /// `PointsStage` stage object
-    PointsStage = 1,
-    // Final stage objects
-    /// `PointsStage` final staged object
-    PointsFinalStaged = 2,
-    // Marker for dynamically registered EndoscalingStep circuits
-    /// Start index for `EndoscalingStep` circuits (indices 3+)
-    EndoscalingStepStart = 3,
+    /// `EndoscalarStage` stage object (index 0)
+    EndoscalarStage,
+    /// `PointsStage` stage object (index 1)
+    PointsStage,
+    /// `PointsStage` final staged object (index 2)
+    PointsFinalStaged,
+    /// `EndoscalingStep` circuit at given step (indices 3+)
+    EndoscalingStep(usize),
+}
+
+impl InternalCircuitIndex {
+    /// Convert to a [`CircuitIndex`] for mesh lookup.
+    pub(crate) fn circuit_index(self) -> CircuitIndex {
+        let idx = match self {
+            Self::EndoscalarStage => 0,
+            Self::PointsStage => 1,
+            Self::PointsFinalStaged => 2,
+            Self::EndoscalingStep(step) => 3 + step,
+        };
+        CircuitIndex::new(idx)
+    }
 }
 
 pub mod stages;
