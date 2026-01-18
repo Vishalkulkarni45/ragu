@@ -203,10 +203,10 @@ impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> Stage<C::Base, R>
 
 /// Step-based endoscaling component.
 ///
-/// Each step performs up to 4 endoscalings via Horner's rule:
-/// - Step 0 initializes from `initial`, iterates `inputs[0..4]`
-/// - Step N (N > 0) initializes from `interstitials[N-1]`, iterates
-///   `inputs[4*N..4*(N+1)]`
+/// Each step performs up to [`ENDOSCALINGS_PER_STEP`] endoscalings via Horner's rule:
+/// - Step 0 initializes from `initial`, iterates over its slice of `inputs[0..4]`
+/// - Step N (N > 0) initializes from `interstitials[N-1]`, iterates over
+///   `inputs[N*ENDOSCALINGS_PER_STEP..(N+1)*ENDOSCALINGS_PER_STEP]` (clamped to bounds)
 ///
 /// The circuit constrains that `interstitials[step]` equals the Horner result.
 #[derive(Clone)]
@@ -278,6 +278,10 @@ impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> StagedCircuit<C::Base, R>
         let (points_guard, dr) = dr.add_stage::<PointsStage<C, NUM_POINTS>>()?;
         let dr = dr.finish();
 
+        // Stages are loaded unenforced here. Curve membership for points and
+        // boolean constraints for these stages are enforced by the routing
+        // circuits (see #172). This only constrains the Horner accumulation
+        // relationship between inputs and interstitials.
         let endoscalar = endoscalar_guard.unenforced(dr, witness.view().map(|w| w.endoscalar))?;
         let points = points_guard.unenforced(dr, witness.view().map(|w| w.points.clone()))?;
 

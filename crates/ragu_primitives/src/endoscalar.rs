@@ -236,6 +236,7 @@ pub fn compute_endoscalar<F: WithSmallOrderMulGroup<3>>(endo: Uendo) -> F {
 ///
 /// This is the native counterpart to [`Endoscalar::extract`].
 pub fn extract_endoscalar<F: PrimeField>(value: F) -> Uendo {
+    // TODO: Consider iterating forward like the circuit implementation.
     let mut endoscalar = Uendo::from(0u64);
 
     for i in (0..Uendo::BITS).rev() {
