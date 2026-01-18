@@ -13,13 +13,9 @@ use rand::Rng;
 use core::iter::once;
 
 use crate::{
-    Application, Pcd, Proof,
-    circuits::native::stages::preamble::ProofInputs,
-    components::{claims, endoscalar::NumStepsLen},
+    Application, Pcd, Proof, circuits::native::stages::preamble::ProofInputs, components::claims,
     header::Header,
-    proof::NUM_P_COMMITMENTS,
 };
-use ragu_primitives::vec::Len;
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     /// Verifies some [`Pcd`] for the provided [`Header`].
@@ -88,12 +84,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         // Check all nested revdot claims.
         let nested_revdot_claims = {
-            let num_steps = NumStepsLen::<NUM_P_COMMITMENTS>::len();
             let nested_source = nested::SingleProofSource { proof: &pcd.proof };
             let y_nested = C::ScalarField::random(&mut rng);
             let z_nested = C::ScalarField::random(&mut rng);
             let mut nested_builder = claims::Builder::new(&self.nested_mesh, 0, y_nested, z_nested);
-            claims::nested::build(&nested_source, &mut nested_builder, num_steps)?;
+            claims::nested::build(&nested_source, &mut nested_builder)?;
 
             let ky_source = nested::SingleProofKySource::<C::ScalarField>::new();
             nested::ky_values(&ky_source)
@@ -262,10 +257,6 @@ mod nested {
 
         fn zero(&self) -> F {
             F::ZERO
-        }
-
-        fn num_circuit_claims(&self) -> usize {
-            NumStepsLen::<NUM_P_COMMITMENTS>::len() // num_steps * 1 proof
         }
     }
 }

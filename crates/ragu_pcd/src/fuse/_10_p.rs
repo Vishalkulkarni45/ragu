@@ -24,11 +24,11 @@ use ragu_core::{
 };
 use ragu_primitives::{Element, compute_endoscalar, extract_endoscalar, vec::Len};
 
+use crate::circuits::nested::NUM_ENDOSCALING_POINTS;
 use crate::components::endoscalar::{
     EndoscalarStage, EndoscalingStep, EndoscalingStepWitness, NumStepsLen, PointsStage,
     PointsWitness,
 };
-use crate::proof::NUM_P_COMMITMENTS;
 use crate::{Application, Proof, proof};
 
 /// Accumulates polynomials with their blinds and commitments.
@@ -185,24 +185,26 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Construct commitment via PointsWitness Horner evaluation.
         // Points order: [f.commitment, commitments...] computes β^n·f + β^{n-1}·C₀ + ...
         let (commitment, endoscalar_rx, points_rx, step_rxs) = {
-            let mut points = Vec::with_capacity(NUM_P_COMMITMENTS);
+            let mut points = Vec::with_capacity(NUM_ENDOSCALING_POINTS);
             points.push(f.commitment);
             points.extend_from_slice(&commitments);
 
-            let witness = PointsWitness::<C::HostCurve, NUM_P_COMMITMENTS>::new(beta_endo, &points);
+            let witness =
+                PointsWitness::<C::HostCurve, NUM_ENDOSCALING_POINTS>::new(beta_endo, &points);
 
             let endoscalar_rx = <EndoscalarStage as StageExt<C::ScalarField, R>>::rx(beta_endo)?;
-            let points_rx = <PointsStage<C::HostCurve, NUM_P_COMMITMENTS> as StageExt<
+            let points_rx = <PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS> as StageExt<
                 C::ScalarField,
                 R,
             >>::rx(witness.clone())?;
 
             // Create rx polynomials for each endoscaling step circuit
-            let num_steps = NumStepsLen::<NUM_P_COMMITMENTS>::len();
+            let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
             let key = self.nested_mesh.get_key();
             let mut step_rxs = Vec::with_capacity(num_steps);
             for step in 0..num_steps {
-                let step_circuit = EndoscalingStep::<C::HostCurve, R, NUM_P_COMMITMENTS>::new(step);
+                let step_circuit =
+                    EndoscalingStep::<C::HostCurve, R, NUM_ENDOSCALING_POINTS>::new(step);
                 let staged = Staged::new(step_circuit);
                 let (step_rx, _) = staged.rx::<R>(
                     EndoscalingStepWitness {

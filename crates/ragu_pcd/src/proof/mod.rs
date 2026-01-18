@@ -13,6 +13,7 @@ use ragu_primitives::vec::Len;
 
 use alloc::vec;
 
+use crate::circuits::nested::NUM_ENDOSCALING_POINTS;
 use crate::components::endoscalar::NumStepsLen;
 use crate::header::Header;
 
@@ -172,7 +173,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 points_rx: zero_structured_nested.clone(),
                 step_rxs: vec![
                     zero_structured_nested.clone();
-                    NumStepsLen::<NUM_P_COMMITMENTS>::len()
+                    NumStepsLen::<NUM_ENDOSCALING_POINTS>::len()
                 ],
             },
             challenges: Challenges::trivial(),

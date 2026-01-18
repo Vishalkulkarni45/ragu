@@ -7,8 +7,6 @@
 //! - Circuit checks (EndoscalingStep): k(y) = 1
 //! - Stage checks (EndoscalarStage, PointsStage, PointsFinalStaged): k(y) = 0
 
-use alloc::borrow::Cow;
-
 use ff::PrimeField;
 use ragu_circuits::polynomials::{Rank, structured};
 use ragu_core::Result;
@@ -44,24 +42,10 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
     fn internal_circuit(
         &mut self,
         id: InternalCircuitIndex,
-        mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
+        rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
     ) {
         let circuit_id = id.circuit_index();
-
-        let first = rxs.next().expect("must provide at least one rx polynomial");
-
-        let rx = match rxs.next() {
-            None => Cow::Borrowed(first),
-            Some(second) => {
-                let mut sum = first.clone();
-                sum.add_assign(second);
-                for rx in rxs {
-                    sum.add_assign(rx);
-                }
-                Cow::Owned(sum)
-            }
-        };
-
+        let rx = super::sum_polynomials(rxs);
         self.circuit_impl(circuit_id, rx);
     }
 
@@ -82,11 +66,17 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
 /// 2. Stage checks (k(y) = 0): EndoscalarStage, PointsStage, PointsFinalStaged
 ///
 /// This ordering must match the ky_elements ordering from [`ky_values`].
-pub fn build<S, P>(source: &S, processor: &mut P, num_steps: usize) -> Result<()>
+pub fn build<S, P>(source: &S, processor: &mut P) -> Result<()>
 where
     S: Source<RxComponent = RxComponent>,
     P: Processor<S::Rx>,
 {
+    use crate::circuits::nested::NUM_ENDOSCALING_POINTS;
+    use crate::components::endoscalar::NumStepsLen;
+    use ragu_primitives::vec::Len;
+
+    let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
+
     use RxComponent::*;
 
     // 1. Circuit checks FIRST (k(y) = 1)
@@ -135,19 +125,22 @@ pub trait KySource {
 
     /// Returns 0 for stage checks.
     fn zero(&self) -> Self::Ky;
-
-    /// Number of circuit claims (num_steps * num_proofs).
-    fn num_circuit_claims(&self) -> usize;
 }
 
 /// Build an iterator over k(y) values in nested claim order.
 ///
 /// Returns:
-/// - `num_circuit_claims` ones (for EndoscalingStep circuit checks)
+/// - `num_steps` ones (for EndoscalingStep circuit checks, single-proof verification)
 /// - Infinite zeros (for stage checks)
 pub fn ky_values<S: KySource>(source: &S) -> impl Iterator<Item = S::Ky> {
-    // Circuit checks: k(y) = 1
-    core::iter::repeat_n(source.one(), source.num_circuit_claims())
+    use crate::circuits::nested::NUM_ENDOSCALING_POINTS;
+    use crate::components::endoscalar::NumStepsLen;
+    use ragu_primitives::vec::Len;
+
+    let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
+
+    // Circuit checks: k(y) = 1 (for single-proof, num_circuit_claims = num_steps)
+    core::iter::repeat_n(source.one(), num_steps)
         // Stage checks: k(y) = 0 (infinite, matches how native does it)
         .chain(core::iter::repeat(source.zero()))
 }

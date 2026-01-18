@@ -10,6 +10,27 @@ use ragu_circuits::{
 pub mod native;
 pub mod nested;
 
+/// Sum an iterator of polynomials, borrowing if only one element.
+///
+/// Returns `Cow::Borrowed` for a single polynomial, `Cow::Owned` for multiple.
+/// Panics if the iterator is empty.
+pub(crate) fn sum_polynomials<'rx, F: PrimeField, R: Rank>(
+    mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
+) -> Cow<'rx, structured::Polynomial<F, R>> {
+    let first = rxs.next().expect("must provide at least one rx polynomial");
+    match rxs.next() {
+        None => Cow::Borrowed(first),
+        Some(second) => {
+            let mut sum = first.clone();
+            sum.add_assign(second);
+            for rx in rxs {
+                sum.add_assign(rx);
+            }
+            Cow::Owned(sum)
+        }
+    }
+}
+
 /// Trait for providing claim component values from sources.
 ///
 /// This trait abstracts over what a "source" provides. For polynomial contexts

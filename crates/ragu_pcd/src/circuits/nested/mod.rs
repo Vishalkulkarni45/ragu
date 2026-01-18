@@ -9,7 +9,18 @@ use ragu_core::Result;
 use ragu_primitives::vec::Len;
 
 use crate::components::endoscalar::{EndoscalarStage, EndoscalingStep, NumStepsLen, PointsStage};
-use crate::proof::NUM_P_COMMITMENTS;
+
+/// Number of curve points accumulated during `compute_p` for nested field
+/// endoscaling verification.
+///
+/// This is the sum of:
+/// - 2 proofs × 15 commitment components = 30
+/// - 6 stage proof components (mesh_wx0, mesh_wx1, mesh_wy, ab.a, ab.b, mesh_xy)
+/// - 1 f.commitment (base polynomial)
+///
+/// The endoscaling circuits process these 37 points across
+/// `NumStepsLen::<NUM_ENDOSCALING_POINTS>::len()` = 9 steps.
+pub(crate) const NUM_ENDOSCALING_POINTS: usize = 37;
 
 /// Index of internal nested circuits registered into the mesh.
 ///
@@ -47,16 +58,17 @@ pub(crate) fn register_all<'params, C: Cycle, R: Rank>(
 ) -> Result<MeshBuilder<'params, C::ScalarField, R>> {
     mesh = mesh.register_circuit_object(EndoscalarStage::into_object()?)?;
 
-    mesh = mesh
-        .register_circuit_object(PointsStage::<C::HostCurve, NUM_P_COMMITMENTS>::into_object()?)?;
-
     mesh = mesh.register_circuit_object(
-        PointsStage::<C::HostCurve, NUM_P_COMMITMENTS>::final_into_object()?,
+        PointsStage::<C::HostCurve, NUM_ENDOSCALING_POINTS>::into_object()?,
     )?;
 
-    let num_steps = NumStepsLen::<NUM_P_COMMITMENTS>::len();
+    mesh = mesh.register_circuit_object(
+        PointsStage::<C::HostCurve, NUM_ENDOSCALING_POINTS>::final_into_object()?,
+    )?;
+
+    let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
     for step in 0..num_steps {
-        let step_circuit = EndoscalingStep::<C::HostCurve, R, NUM_P_COMMITMENTS>::new(step);
+        let step_circuit = EndoscalingStep::<C::HostCurve, R, NUM_ENDOSCALING_POINTS>::new(step);
         let staged = Staged::new(step_circuit);
         mesh = mesh.register_circuit_object(staged.into_object()?)?;
     }

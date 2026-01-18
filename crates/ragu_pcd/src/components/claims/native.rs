@@ -103,23 +103,10 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
     fn internal_circuit(
         &mut self,
         id: InternalCircuitIndex,
-        mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
+        rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
     ) {
         let circuit_id = id.circuit_index(self.num_application_steps);
-        let first = rxs.next().expect("must provide at least one rx polynomial");
-
-        let rx = match rxs.next() {
-            None => Cow::Borrowed(first),
-            Some(second) => {
-                let mut sum = first.clone();
-                sum.add_assign(second);
-                for rx in rxs {
-                    sum.add_assign(rx);
-                }
-                Cow::Owned(sum)
-            }
-        };
-
+        let rx = super::sum_polynomials(rxs);
         self.circuit_impl(circuit_id, rx);
     }
 

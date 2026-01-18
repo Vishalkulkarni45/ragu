@@ -128,12 +128,6 @@ pub(crate) struct P<C: Cycle, R: Rank> {
     pub(crate) step_rxs: Vec<structured::Polynomial<C::ScalarField, R>>,
 }
 
-/// Number of commitments accumulated in compute_p:
-/// - 2 proofs × 15 components = 30
-/// - 6 stage proof components
-/// - 1 f.commitment
-pub(crate) const NUM_P_COMMITMENTS: usize = 37;
-
 #[derive(Clone)]
 pub(crate) struct Challenges<C: Cycle> {
     pub(crate) w: C::CircuitField,
