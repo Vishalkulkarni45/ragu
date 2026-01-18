@@ -119,7 +119,7 @@ must have `Left = ()` and `Right = ()`.
 #### Trivial Proofs
 
 A _trivial proof_ is a dummy proof used to seed the base case of recursion. It
-does not encode any real computation; instead, it provides a well formed starting
+does not encode any real computation; instead, it provides a well-formed starting
 proof that allows the recursive machinery to bootstrap. Internally, trivial proofs
 use zero polynomials and deterministic blinding factors.
 
@@ -179,7 +179,7 @@ This is useful for privacy-preserving applications where proof linkability
 must be prevented.
 
 Internally, rerandomization folds the input proof with a _seeded trivial proof_
-using a dedicated rerandomization step. The `Application` caches this seeded
+using a dedicated rerandomization step. The [`Application`](../guide/configuration.md) caches this seeded
 trivial proof (created once via `seed()`) to avoid regenerating it on each call.
 This cached proof provides valid structure while the fresh randomness from `rng`
 ensures the output proof is unlinkable to the original.
@@ -251,18 +251,5 @@ For deeper background, see
 
 The `Proof` type contains the cryptographic data required for
 verification, organized into components that mirror the protocol's
-[staging system](staging.md). Each proof component captures polynomials,
+[staging system](../protocol/extensions/staging.md). Each proof component captures polynomials,
 blinding factors, and commitments on both the host and nested curves.
-
-| Component | Purpose |
-|-------|---------|
-| Application | Binds proof to a specific step circuit; holds witness polynomial and header commitments |
-| Preamble | Initial transcript setup; bridges native and nested curve layers |
-| SPrime | Mesh polynomial evaluations at challenge points |
-| ErrorM | First layer of revdot claim reduction (multiple M-sized reductions) |
-| ErrorN | Second layer of revdot claim reduction (single N-sized reduction) |
-| AB | Accumulation folding polynomials and revdot product |
-| Query | Polynomial query stage with mesh evaluations |
-| F | Batched verification polynomial |
-| Eval | Evaluation stage commitments |
-| P | Final batch proof: $p(X)$ and evaluation $v = p(u)$ |
