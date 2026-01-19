@@ -196,7 +196,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             let points_rx = <PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS> as StageExt<
                 C::ScalarField,
                 R,
-            >>::rx(witness.clone())?;
+            >>::rx(&witness)?;
 
             // Create rx polynomials for each endoscaling step circuit
             let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
@@ -209,7 +209,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 let (step_rx, _) = staged.rx::<R>(
                     EndoscalingStepWitness {
                         endoscalar: beta_endo,
-                        points: witness.clone(),
+                        points: &witness,
                     },
                     key,
                 )?;
@@ -217,7 +217,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             }
 
             (
-                *witness.interstitials.last().unwrap(),
+                *witness
+                    .interstitials
+                    .last()
+                    .expect("NumStepsLen guarantees at least one interstitial"),
                 endoscalar_rx,
                 points_rx,
                 step_rxs,

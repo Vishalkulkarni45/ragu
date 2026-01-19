@@ -69,7 +69,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         claims::native::build(&source, &mut builder)?;
 
         // Check all native revdot claims.
-        let revdot_claims = {
+        let native_revdot_claims = {
             let ky_source = native::SingleProofKySource {
                 raw_c: pcd.proof.ab.c,
                 application_ky,
@@ -121,7 +121,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // - mesh_wx0/wx1: need child proof x challenges (x₀, x₁) which "disappear" in preamble
         // - mesh_wy: interstitial value that will be elided later
 
-        Ok(revdot_claims
+        Ok(native_revdot_claims
             && nested_revdot_claims
             && p_eval_claim
             && p_commitment_claim
@@ -229,7 +229,7 @@ mod nested {
             let poly = match component {
                 EndoscalarStage => &self.proof.p.endoscalar_rx,
                 PointsStage => &self.proof.p.points_rx,
-                EndoscalingStep(step) => &self.proof.p.step_rxs[step], // TODO
+                EndoscalingStep(step) => &self.proof.p.step_rxs[step], // TODO: bounds
             };
             core::iter::once(poly)
         }

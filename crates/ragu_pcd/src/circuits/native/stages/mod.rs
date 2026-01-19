@@ -1,3 +1,5 @@
+//! Native field stages for fuse operations.
+
 pub mod error_m;
 pub mod error_n;
 pub mod eval;

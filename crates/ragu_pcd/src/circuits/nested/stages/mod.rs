@@ -1,3 +1,5 @@
+//! Nested field stages for fuse operations.
+
 /// Generates a nested stage module that witnesses curve points with named fields.
 ///
 /// The `parent` argument specifies the Parent stage type for this stage.

@@ -176,7 +176,7 @@ impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> Stage<C::Base, R>
         2 * (1 + InputsLen::<NUM_POINTS>::len() + NumStepsLen::<NUM_POINTS>::len())
     }
 
-    type Witness<'source> = PointsWitness<C, NUM_POINTS>;
+    type Witness<'source> = &'source PointsWitness<C, NUM_POINTS>;
     type OutputKind = Kind![C::Base; Points<'_, _, C, NUM_POINTS>];
 
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::Base>>(
@@ -242,11 +242,11 @@ impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> EndoscalingStep<C, R, NUM
 }
 
 /// Witness for an endoscaling step.
-pub struct EndoscalingStepWitness<C: CurveAffine, const NUM_POINTS: usize> {
+pub struct EndoscalingStepWitness<'source, C: CurveAffine, const NUM_POINTS: usize> {
     /// The endoscalar value.
     pub endoscalar: Uendo,
     /// Point witnesses (inputs and interstitials).
-    pub points: PointsWitness<C, NUM_POINTS>,
+    pub points: &'source PointsWitness<C, NUM_POINTS>,
 }
 
 impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> StagedCircuit<C::Base, R>
@@ -254,7 +254,7 @@ impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> StagedCircuit<C::Base, R>
 {
     type Final = PointsStage<C, NUM_POINTS>;
     type Instance<'source> = ();
-    type Witness<'source> = EndoscalingStepWitness<C, NUM_POINTS>;
+    type Witness<'source> = EndoscalingStepWitness<'source, C, NUM_POINTS>;
     type Output = Kind![C::Base; ()];
     type Aux<'source> = ();
 
@@ -283,7 +283,7 @@ impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> StagedCircuit<C::Base, R>
         // circuits (see #172). This only constrains the Horner accumulation
         // relationship between inputs and interstitials.
         let endoscalar = endoscalar_guard.unenforced(dr, witness.view().map(|w| w.endoscalar))?;
-        let points = points_guard.unenforced(dr, witness.view().map(|w| w.points.clone()))?;
+        let points = points_guard.unenforced(dr, witness.view().map(|w| w.points))?;
 
         // acc = initial or previous interstitial, depending on step index
         let mut acc = self
@@ -440,13 +440,12 @@ mod tests {
             let final_s = PointsStage::<EpAffine, NUM_POINTS>::final_into_object()?;
 
             let endoscalar_rx = <EndoscalarStage as StageExt<Fp, R>>::rx(endoscalar)?;
-            let points_rx =
-                <PointsStage<EpAffine, NUM_POINTS> as StageExt<Fp, R>>::rx(points.clone())?;
+            let points_rx = <PointsStage<EpAffine, NUM_POINTS> as StageExt<Fp, R>>::rx(&points)?;
             let key = Fp::ONE;
             let (final_rx, _) = staged.rx::<R>(
                 EndoscalingStepWitness {
                     endoscalar,
-                    points: points.clone(),
+                    points: &points,
                 },
                 key,
             )?;
@@ -510,7 +509,7 @@ mod tests {
             let (final_rx, _) = staged.rx::<R>(
                 EndoscalingStepWitness {
                     endoscalar,
-                    points: points.clone(),
+                    points: &points,
                 },
                 key,
             )?;
@@ -520,8 +519,7 @@ mod tests {
             let y = Fp::random(thread_rng());
 
             let endoscalar_rx = <EndoscalarStage as StageExt<Fp, R>>::rx(endoscalar)?;
-            let points_rx =
-                <PointsStage<EpAffine, NUM_POINTS> as StageExt<Fp, R>>::rx(points.clone())?;
+            let points_rx = <PointsStage<EpAffine, NUM_POINTS> as StageExt<Fp, R>>::rx(&points)?;
 
             // Verify combined circuit identity.
             let mut lhs = final_rx.clone();
