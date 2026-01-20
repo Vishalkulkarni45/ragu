@@ -189,7 +189,7 @@ impl<F: Field, R: Rank> VirtualTable<'_, F, R> {
         match self.free.pop() {
             Some(index) => {
                 assert_eq!(self.wires[index].refcount, 0);
-                assert_eq!(self.wires[index].value, Coeff::Zero);
+                assert!(self.wires[index].value.is_zero());
                 assert!(self.wires[index].terms.is_empty());
 
                 self.wires[index].refcount = 1;

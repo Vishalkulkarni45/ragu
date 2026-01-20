@@ -7,7 +7,7 @@ use core::ops::{Add, Mul};
 /// about field elements that can be leveraged to optimize arithmetic operations
 /// (like avoiding unnecessary field multiplications) and improve the efficiency
 /// of group arithmetic.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug)]
 pub enum Coeff<F: Field> {
     /// Represents `F::ZERO`.
     Zero,
@@ -24,6 +24,15 @@ pub enum Coeff<F: Field> {
 }
 
 impl<F: Field> Coeff<F> {
+    /// Returns `true` if this coefficient represents zero.
+    pub fn is_zero(&self) -> bool {
+        match self {
+            Coeff::Zero => true,
+            Coeff::Arbitrary(v) | Coeff::NegativeArbitrary(v) => v.is_zero().into(),
+            _ => false,
+        }
+    }
+
     /// Compute the actual field element value of this coefficient.
     pub fn value(&self) -> F {
         match self {
@@ -139,6 +148,12 @@ mod tests {
             let b = coeff2 + coeff1;
             assert_eq!(a.value(), b.value());
             assert_eq!(a.value(), (coeff1.value() + coeff2.value()));
+        }
+
+        #[test]
+        fn test_coeff_is_zero(coeff in any::<Coeff<F>>()) {
+            use ff::Field;
+            assert_eq!(coeff.is_zero(), bool::from(coeff.value().is_zero()));
         }
     }
 }
