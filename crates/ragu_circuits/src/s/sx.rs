@@ -1,25 +1,26 @@
-//! Partial evaluation of `s(X,Y)` at a fixed point `X = x`.
-//! See the [parent module][`super`] for background on `s(X,Y)`.
+//! Partial evaluation of $s(X, Y)$ at a fixed point $X = x$.
 //!
-//! This module provides [`eval`], which computes `s(x, Y)`—the wiring polynomial
-//! evaluated at a concrete `x`, yielding a univariate polynomial in `Y`.
+//! See the [parent module][`super`] for background on $s(X, Y)$.
 //!
-//! The output `s(x, Y) = Σⱼ cⱼ · Yʲ` has one coefficient per linear constraint
-//! in the circuit. Each `cⱼ` is computed by evaluating a univarate polynomial in
-//! `X` that consists of linear combination of monomial terms at `X=x`.
+//! This module provides [`eval`], which computes $s(x, Y)$: the wiring polynomial
+//! evaluated at a concrete $x$, yielding a univariate polynomial in $Y$.
+//!
+//! The output $s(x, Y) = \sum_j c_j \cdot Y^j$ has one coefficient per linear constraint
+//! in the circuit. Each $c_j$ is computed by evaluating a univariate polynomial in
+//! $X$ that consists of a linear combination of monomial terms at $X = x$.
 //!
 //! # How it works
 //!
-//! The [`Evaluator`] driver re-interprets circuit operations to compute polynomial
+//! A specialized driver re-interprets circuit operations to compute polynomial
 //! coefficients directly:
 //!
 //! - `mul()`: returns wire handles that are actually monomial evaluations
-//!   (`x^{2n-1-i}`, `x^{2n+i}`, `x^{4n-1-i}` for the `i`-th multiplication gate).
+//!   ($x^{2n-1-i}$, $x^{2n+i}$, $x^{4n-1-i}$ for the $i$-th multiplication gate).
 //!
 //! - `add()`: accumulates a linear combination of these evaluations and returns
 //!   the sum (actually `MonomialSum`) as a handle to the virtual wire.
 //!
-//! - `enforce_zero()`: stores the accumulated sum as coefficient `cⱼ` and
+//! - `enforce_zero()`: stores the accumulated sum as coefficient $c_j$ and
 //!   advances to the next constraint.
 //!
 //! Since the wiring polynomial encodes only linear constraints, multiplication
@@ -49,7 +50,7 @@ use crate::{
 
 use super::{Monomial, MonomialSum};
 
-/// Driver for computing partial evaluation $s(x, Y)$.
+/// Driver that computes the partial evaluation $s(x, Y)$.
 struct Evaluator<F: Field, R: Rank> {
     result: unstructured::Polynomial<F, R>,
     multiplication_constraints: usize,
@@ -148,9 +149,10 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<F, R> {
     }
 }
 
-/// Evaluates the wiring polynomial `s(x,Y)` at a fixed `x`, with mesh key `key`.
-/// Mesh key augment the original `circuit` with one more `key`-related linear
-/// constraint, thus binding `circuit` to an outer `Mesh` context.
+/// Evaluates the wiring polynomial $s(x, Y)$ at a fixed $x$, with mesh key `key`.
+///
+/// The mesh key augments the original `circuit` with one additional `key`-related
+/// linear constraint, binding the circuit to an outer [`Mesh`][crate::mesh::Mesh] context.
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
     x: F,
@@ -188,7 +190,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     let (key_wire, _, one) = evaluator.mul(|| unreachable!())?;
 
     // Enforce linear constraint key_wire = key to randomize non-trivial
-    // evaluations of this circuit polynomial.
+    // evaluations of this wiring polynomial.
     evaluator.enforce_zero(|lc| {
         lc.add(&key_wire)
             .add_term(&one, Coeff::NegativeArbitrary(key))

@@ -83,16 +83,16 @@ use ragu_core::drivers::LinearExpression;
 ///
 /// # Variants
 ///
-/// * `Value(F)`: monomial evaluations (e.g., `x^i`, `x^i * y^j`)
+/// * `Value(F)`: monomial evaluations (e.g., $x^i$, $x^i \cdot y^j$)
 /// * `One`: a special monomial term that corresponds to the ONE wire
 ///
-/// Note, `One` here has nothing to do with `x^0=1` (the constant monomial).
+/// Note that `One` here has nothing to do with $x^0 = 1$ (the constant monomial).
 /// During circuit arithmetization, the `ONE` wire corresponds to a monomial term
-/// in the overall wiring polynomial `s(X,Y)`. While the evaluation of this
-/// monomial depends on evaluation point `x` (or `y`), the type system requires
-/// `const Driver::ONE: Wire` a constant value. Thus we introduce this special
-/// variant to represent the monomial evaluation for the `ONE` wire.
-/// Categorically, `Monomial::One` is just another `Monomial::Value(_)`.
+/// in the overall wiring polynomial $s(X, Y)$. While the evaluation of this
+/// monomial depends on evaluation point $x$ (or $y$), the type system requires
+/// `const Driver::ONE: Wire` to be a constant value. Thus we introduce this
+/// special variant to represent the monomial evaluation for the `ONE` wire.
+/// Categorically, `Monomial::One` is another `Monomial::Value(_)`.
 ///
 /// # Relationship to `Driver::Wire`
 ///
@@ -107,8 +107,7 @@ enum Monomial<F> {
     One,
 }
 
-/// Accumulator for linear combinations of monomials (a part of arbitrary
-/// polynomial evaluation expression).
+/// Accumulates linear combinations of monomials during polynomial evaluation.
 struct MonomialSum<F: Field> {
     value: F,
     one: F,

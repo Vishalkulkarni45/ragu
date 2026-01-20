@@ -1,12 +1,12 @@
-//! Evaluate the circuit polynomial s(x, y) at fixed x and y.
-//! See module level [documentation][`crate::s`] for background,
-//! and [`sx` module](crate::s::sx) for how the Evaluator driver works for partial
-//! evaluation `s(x, Y)`.
+//! Evaluates the wiring polynomial $s(x, y)$ at fixed $x$ and $y$.
 //!
-//! `sxy::Evaluator` employs similar driver logic as `sx::Evaluator` but more
-//! memory efficient since it only needs to keep track of a single valuation value
-//! instead of a vector of coefficients. More importantly, it is subject to more
-//! aggressive optimizations through multi-dimennsional routine memoization.
+//! See the [parent module][`super`] for background on $s(X, Y)$, and the
+//! [`sx`][super::sx] module for how partial evaluation $s(x, Y)$ works.
+//!
+//! This module employs similar driver logic as `sx` but is more memory efficient
+//! since it only needs to track a single accumulated value instead of a vector of
+//! coefficients. More importantly, it is subject to more aggressive optimizations
+//! through multi-dimensional routine memoization.
 //! See <https://github.com/tachyon-zcash/ragu/issues/58> for details.
 
 use arithmetic::Coeff;
@@ -26,6 +26,7 @@ use crate::{Circuit, polynomials::Rank};
 
 use super::{Monomial, MonomialSum};
 
+/// Driver that computes the full evaluation $s(x, y)$.
 struct Evaluator<F, R> {
     result: F,
     multiplication_constraints: usize,
@@ -126,9 +127,10 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<F, R> {
     }
 }
 
-/// Evaluate the wiring polynomial `s(X,Y)` at fixed point `(x,y)` with mesh key `key`.
-/// Mesh key augment the original `circuit` with one more `key`-related linear
-/// constraint, thus binding `circuit` to an outer `Mesh` context.
+/// Evaluates the wiring polynomial $s(X, Y)$ at fixed point $(x, y)$ with mesh key `key`.
+///
+/// The mesh key augments the original `circuit` with one additional `key`-related
+/// linear constraint, binding the circuit to an outer [`Mesh`][crate::mesh::Mesh] context.
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(circuit: &C, x: F, y: F, key: F) -> Result<F> {
     if x == F::ZERO {
         // The polynomial is zero if x is zero.
@@ -149,7 +151,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(circuit: &C, x: F, y: F, key: F) -
         return Ok(current_w_x);
     }
 
-    let mut dr = Evaluator::<F, R> {
+    let mut evaluator = Evaluator::<F, R> {
         result: F::ZERO,
         multiplication_constraints: 0,
         linear_constraints: 0,
@@ -164,23 +166,23 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(circuit: &C, x: F, y: F, key: F) -
         _marker: core::marker::PhantomData,
     };
 
-    let (key_wire, _, one) = dr.mul(|| unreachable!())?;
+    let (key_wire, _, one) = evaluator.mul(|| unreachable!())?;
 
     // Enforce linear constraint key_wire = key to randomize non-trivial
-    // evaluations of this circuit polynomial.
-    dr.enforce_zero(|lc| {
+    // evaluations of this wiring polynomial.
+    evaluator.enforce_zero(|lc| {
         lc.add(&key_wire)
             .add_term(&one, Coeff::NegativeArbitrary(key))
     })?;
 
     let mut outputs = vec![];
 
-    let (io, _) = circuit.witness(&mut dr, Empty)?;
-    io.write(&mut dr, &mut outputs)?;
+    let (io, _) = circuit.witness(&mut evaluator, Empty)?;
+    io.write(&mut evaluator, &mut outputs)?;
     for output in outputs {
-        dr.enforce_zero(|lc| lc.add(output.wire()))?;
+        evaluator.enforce_zero(|lc| lc.add(output.wire()))?;
     }
-    dr.enforce_zero(|lc| lc.add(&one))?;
+    evaluator.enforce_zero(|lc| lc.add(&one))?;
 
-    Ok(dr.result)
+    Ok(evaluator.result)
 }

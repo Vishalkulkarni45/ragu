@@ -1,14 +1,14 @@
-//! Evaluates s(X, y) at fixed `y`.
+//! Evaluates $s(X, y)$ at fixed $y$.
 //!
 //! # Design
 //!
-//! Unlike `sx` which can build coefficients incrementally, `s(X,y)` coefficients
-//! cannot be computed in a strictly streaming order during synthesis.
-//! The coefficient of `X^j` depends on wiring matrix terms
-//! like `sum_{j=0}^{q-1} sum_{i=0}^{n-1} U_{j,i} * X^{2n-1-i}`
-//! (and similarly for V, W matrices), which essentially require evaluating
-//! a row of `U` (or `V`, `W`) matrix. These rows are undetermined until
-//! all q linear constraints have been processed.
+//! Unlike [`sx`][super::sx] which can build coefficients incrementally, $s(X, y)$
+//! coefficients cannot be computed in a strictly streaming order during synthesis.
+//! The coefficient of $X^j$ depends on wiring matrix terms like
+//! $\sum_{j=0}^{q-1} \sum_{i=0}^{n-1} U_{j, i} \cdot X^{2n-1-i}$
+//! (and similarly for the $V$, $W$ matrices), which essentially require evaluating
+//! a row of the $U$ (or $V$, $W$) matrix. These rows are undetermined until
+//! all $q$ linear constraints have been processed.
 //!
 //! We use **virtual wires** to defer coefficient computation. Virtual wires are
 //! symbolic linear combinations that accumulate references to other wires
@@ -44,8 +44,9 @@ enum WireIndex {
     Virtual(usize),
 }
 
-/// Uniform type for allocated and virtual wire.
-/// A virtual wire carries a virtual table pointer `table: Some<_>`.
+/// A uniform type for allocated and virtual wires.
+///
+/// A virtual wire carries a virtual table pointer (`table: Some(_)`).
 struct Wire<'table, 'sy, F: Field, R: Rank> {
     index: WireIndex,
     table: Option<&'table RefCell<VirtualTable<'sy, F, R>>>,
@@ -115,19 +116,19 @@ struct VirtualWire<F: Field> {
 
 /// The virtual table maintains a list of virtual wires, a free list for
 /// reusing virtual wire slots, and a backward view into the structured polynomial
-/// `s(X, y)`.
+/// $s(X, y)$.
 ///
 /// See [`Self::free`] for details on the reference counting and resolution.
 ///
 /// # Backward View
 ///
-/// Ultimately, `<<r(X), s(X,y)>> = k(y)` enforces correct circuit wiring.
-/// Expressed in revdot product, LHS becomes:
-/// `<[0 | a.rev | b | c.rev], s_coeff_vec>`
+/// Ultimately, $\langle\langle r(X), s(X, y) \rangle\rangle = k(y)$ enforces
+/// correct circuit wiring. Expressed in revdot product, the LHS becomes:
+/// $\langle [0 \mid a.\text{rev} \mid b \mid c.\text{rev}], s_{\text{coeff}} \rangle$
 ///
-/// The backward view of `s(X,y)` gives us directly access to the coefficients
-/// for the `a`, `b`, and `c` wires in the correct order, instead of building
-/// a flat coefficient vector for `s(X,y)` then re-interpreting it.
+/// The backward view of $s(X, y)$ gives direct access to the coefficients for
+/// the $a$, $b$, and $c$ wires in the correct order, instead of building a flat
+/// coefficient vector for $s(X, y)$ then re-interpreting it.
 struct VirtualTable<'sy, F: Field, R: Rank> {
     wires: Vec<VirtualWire<F>>,
     free: Vec<usize>,
@@ -147,7 +148,7 @@ impl<F: Field, R: Rank> VirtualTable<'_, F, R> {
         } += value.value();
     }
 
-    /// Decrements the refcount of a virtual wire and **resolve** it (by adding
+    /// Decrements the refcount of a virtual wire and **resolves** it (by adding
     /// to the `self.free` vector) if the count reaches zero.
     ///
     /// Resolved virtual wires distribute their accumulated value to all
@@ -167,14 +168,13 @@ impl<F: Field, R: Rank> VirtualTable<'_, F, R> {
                     self.add(wire, value * coeff);
                     self.free(wire);
                 }
-                self.wires[index].terms.clear();
                 self.wires[index].value = Coeff::Zero;
                 self.free.push(index);
             }
         }
     }
 
-    /// Update the terms of a virtual wire
+    /// Updates the terms of a virtual wire.
     fn update(&mut self, index: WireIndex, terms: Vec<(WireIndex, Coeff<F>)>) {
         match index {
             WireIndex::Virtual(index) => {
@@ -184,7 +184,7 @@ impl<F: Field, R: Rank> VirtualTable<'_, F, R> {
         }
     }
 
-    /// Allocate a new virtual wire
+    /// Allocates a new virtual wire.
     fn alloc(&mut self) -> WireIndex {
         match self.free.pop() {
             Some(index) => {
@@ -208,7 +208,7 @@ impl<F: Field, R: Rank> VirtualTable<'_, F, R> {
     }
 }
 
-/// Evaluator driver for evaluating s(X, y) at fixed y.
+/// Driver that computes $s(X, y)$ at a fixed $y$.
 struct Evaluator<'table, 'sy, F: Field, R: Rank> {
     multiplication_constraints: usize,
     linear_constraints: usize,
@@ -370,7 +370,10 @@ impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Evaluator<'table, 'sy, F
     }
 }
 
-/// Evaluate the wiring polynomial `s(x, y)` at fixed `(x,y)`
+/// Evaluates the wiring polynomial $s(X, y)$ at a fixed $y$, with mesh key `key`.
+///
+/// The mesh key augments the original `circuit` with one additional `key`-related
+/// linear constraint, binding the circuit to an outer [`Mesh`][crate::mesh::Mesh] context.
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
     y: F,
@@ -406,7 +409,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
             let (key_wire, _, one) = evaluator.mul(|| unreachable!())?;
 
             // Enforce linear constraint key_wire = key to randomize non-trivial
-            // evaluations of this circuit polynomial.
+            // evaluations of this wiring polynomial.
             evaluator.enforce_zero(|lc| {
                 lc.add(&key_wire)
                     .add_term(&one, Coeff::NegativeArbitrary(key))
@@ -424,8 +427,8 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
         }
 
         // We should have ended up freeing all the wires; otherwise, there's
-        // something goofy happening during synthesis that could mean there's a bug
-        // in the circuit.
+        // unexpected behavior during synthesis that could indicate a bug in the
+        // circuit.
         let virtual_table = virtual_table.into_inner();
         assert_eq!(virtual_table.free.len(), virtual_table.wires.len());
     }
