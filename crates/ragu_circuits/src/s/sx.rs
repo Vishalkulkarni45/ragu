@@ -300,6 +300,10 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<F, R> {
 /// constraints that force these wires to match their corresponding values in the
 /// public input polynomial $k(Y)$.
 ///
+/// For example, `enforce_zero(|lc| lc.add(output_wire))` on a public output
+/// doesn't constrain `output_wire = 0`. Instead, if `output_wire` has value `v`,
+/// this creates a constraint binding `v` as a coefficient in $k(Y)$.
+///
 /// [`Circuit::witness`]: crate::Circuit::witness
 /// [`Circuit::instance`]: crate::Circuit::instance
 /// [`enforce_zero`]: ragu_core::drivers::Driver::enforce_zero
@@ -350,11 +354,13 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     io.write(&mut evaluator, &mut outputs)?;
 
     // Public output constraints (one per output wire).
+    // They do NOT enforce output == 0, instead bind output wires to k(Y) coefficients
     for output in outputs {
         evaluator.enforce_zero(|lc| lc.add(output.wire()))?;
     }
 
-    // `ONE` wire constraint.
+    // ONE wire constraint.
+    // It does NOT enforce one == 0, instead binds ONE wire the first k(Y) coefficient
     evaluator.enforce_zero(|lc| lc.add(&one))?;
 
     // Reverse to canonical coefficient order (see module docs).

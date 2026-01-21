@@ -678,10 +678,14 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
             let (io, _) = circuit.witness(&mut evaluator, Empty)?;
             io.write(&mut evaluator, &mut outputs)?;
 
-            // Bind circuit witness outputs to k(Y) coefficients k_j
+            // Public output constraints (one per output wire).
+            // They do NOT enforce output == 0, instead bind output wires to k(Y) coefficients
             for output in outputs {
                 evaluator.enforce_zero(|lc| lc.add(output.wire()))?;
             }
+
+            // ONE wire constraint.
+            // It does NOT enforce one == 0, instead binds ONE wire the first k(Y) coefficient
             evaluator.enforce_zero(|lc| lc.add(&one))?;
 
             // Invariant: synthesis must produce exactly the expected number of
