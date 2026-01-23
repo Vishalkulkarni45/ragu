@@ -109,43 +109,29 @@ impl<F: Field> LinearExpression<WireEval<F>, F> for WireEvalSum<F> {
     }
 }
 
-/// Extension trait for [`Driver`] for wiring polynomial evaluators in
-/// [`s` module][super].
+/// An extension trait for [`Driver`] for common (internal) $s(X, Y)$ constraint
+/// enforcement.
 ///
 /// # Public Input Enforcement
 ///
-/// Public inputs are encoded in the wiring polynomial through a dual
-/// interpretation of [`enforce_zero`]. While user code sees [`enforce_zero`] as
-/// constraining wire values to equal zero, the protocol actually uses these
-/// constraints to bind public input values.
+/// Algebraically, all linear constraints relate linear combinations of wires to
+/// elements in the public input vector. However, circuits are usually concerned
+/// with enforcing that combinations of wires equal zero, and hence
+/// [`enforce_zero`] is offered as the primary API even though it is technically
+/// a special case that constrains against an element of the (sparse) public
+/// input vector that is implicitly assigned to zero.
 ///
-/// ### The User API
+/// This trait provides [`enforce_public_outputs`] and [`enforce_one`] methods
+/// to explicitly denote when constraints _actually_ intend to bind against
+/// designated coefficients of the low-degree $k(Y)$ public input polynomial.
+/// Internally, these just proxy to `enforce_zero` anyway.
 ///
-/// Circuit implementations call [`enforce_zero`] to create linear constraints.
-/// Within [`Circuit::witness`], these calls do exactly what they appear to do:
-/// they constrain linear combinations of wire assignments to equal zero.
-///
-/// ### Public Input Binding
-///
-/// Calls to [`enforce_zero`] on public output wires (from [`Circuit::instance`])
-/// and the `ONE` wire do NOT enforce that these wires equal zero. Instead, they
-/// bind these wire values as coefficients in the public input polynomial $k(Y)$.
-///
-/// For example, calling `enforce_zero(|lc| lc.add(output_wire))` on a public
-/// output with value $v$ creates a constraint that binds $v$ as a coefficient
-/// in $k(Y)$, not a constraint that $v = 0$.
-///
-/// This dual interpretation allows the same [`enforce_zero`] API to serve both
-/// purposes: internal zero constraints and public input binding.
-///
-/// [`Circuit::witness`]: crate::Circuit::witness
-/// [`Circuit::instance`]: crate::Circuit::instance
 /// [`enforce_zero`]: ragu_core::drivers::Driver::enforce_zero
+/// [`enforce_public_outputs`]: DriverExt::enforce_public_outputs
+/// [`enforce_one`]: DriverExt::enforce_one
 pub(super) trait DriverExt<'dr>: Driver<'dr> {
-    /// Enforces public output constraints by binding output wires to polynomial coefficients.
-    ///
-    /// Creates one constraint per output wire. These constraints do NOT enforce
-    /// output == 0; instead, they bind output wires to k(Y) coefficients.
+    /// Enforces public output constraints by binding output wires to
+    /// coefficients of $k(Y)$.
     fn enforce_public_outputs<'w>(
         &mut self,
         outputs: impl IntoIterator<Item = &'w Self::Wire>,
@@ -158,10 +144,8 @@ pub(super) trait DriverExt<'dr>: Driver<'dr> {
             .try_for_each(|output| self.enforce_zero(|lc| lc.add(output)))
     }
 
-    /// Enforces the ONE wire constraint.
-    ///
-    /// This does NOT enforce one == 0; instead, it binds the ONE wire to the
-    /// first k(Y) coefficient.
+    /// Enforces the special `ONE` constraint that is enforced against the
+    /// constant term of $k(Y)$.
     fn enforce_one(&mut self) -> Result<()> {
         self.enforce_zero(|lc| lc.add(&Self::ONE))
     }
