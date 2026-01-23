@@ -66,7 +66,7 @@ use arithmetic::Coeff;
 use ff::Field;
 use ragu_core::{
     Error, Result,
-    drivers::{Driver, DriverTypes, LinearExpression, emulator::Emulator},
+    drivers::{Driver, DriverTypes, emulator::Emulator},
     gadgets::GadgetKind,
     maybe::Empty,
     routines::{Prediction, Routine},
@@ -320,14 +320,12 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
         available_b: None,
         _marker: core::marker::PhantomData,
     };
-    // Gate 0: key_wire = a, one = c (the `ONE` wire).
-    let (key_wire, _, one) = evaluator.mul(|| unreachable!())?;
 
-    // Mesh key constraint: key_wire - key = 0.
-    evaluator.enforce_zero(|lc| {
-        lc.add(&key_wire)
-            .add_term(&one, Coeff::NegativeArbitrary(key))
-    })?;
+    // Allocate the key_wire and ONE wires
+    let (key_wire, _, _one) = evaluator.mul(|| unreachable!())?;
+
+    // Mesh key constraint
+    evaluator.enforce_mesh_key(&key_wire, key)?;
 
     let mut outputs = vec![];
     let (io, _) = circuit.witness(&mut evaluator, Empty)?;

@@ -663,14 +663,11 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
                 _marker: core::marker::PhantomData,
             };
 
-            let (key_wire, _, one) = evaluator.mul(|| unreachable!())?;
+            // Allocate the key_wire and ONE wires
+            let (key_wire, _, _one) = evaluator.mul(|| unreachable!())?;
 
-            // Enforce linear constraint key_wire = key to randomize non-trivial
-            // evaluations of this wiring polynomial.
-            evaluator.enforce_zero(|lc| {
-                lc.add(&key_wire)
-                    .add_term(&one, Coeff::NegativeArbitrary(key))
-            })?;
+            // Mesh key constraint
+            evaluator.enforce_mesh_key(&key_wire, key)?;
 
             let mut outputs = vec![];
             let (io, _) = circuit.witness(&mut evaluator, Empty)?;
