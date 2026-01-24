@@ -3,6 +3,8 @@ use pasta_curves::{arithmetic::CurveAffine, group::Group};
 
 use alloc::{boxed::Box, vec, vec::Vec};
 
+use crate::domain::Domain;
+
 /// Evaluates a polynomial $p \in \mathbb{F}\[X]$ at a point $x \in \mathbb{F}$,
 /// where $p$ is defined by `coeffs` in ascending order of degree.
 pub fn eval<'a, F: Field, I: IntoIterator<Item = &'a F>>(coeffs: I, x: F) -> F
@@ -260,6 +262,179 @@ pub fn geosum<F: Field>(mut r: F, mut m: usize) -> F {
         m >>= 1;
     }
     sum
+}
+
+/// Computes the lowest degree monic polynomial
+///
+/// $$
+/// \prod_{i=0}^{n-1} (X - r_i)
+/// $$
+///
+/// where $r_i$ are the provided values. Multiplicity is maintained, i.e. if a
+/// root appears $k$ times in the input, it will appear $k$ times in the output
+/// polynomial.
+pub fn poly_with_roots<F: PrimeField>(roots: &[F]) -> Vec<F> {
+    if roots.is_empty() {
+        return vec![F::ONE];
+    }
+
+    let mut polys: Vec<Vec<F>> = roots.iter().map(|&root| vec![-root, F::ONE]).collect();
+
+    let max_domain_size = (roots.len() + 1).next_power_of_two();
+    let mut scratch1 = vec![F::ZERO; max_domain_size];
+    let mut scratch2 = vec![F::ZERO; max_domain_size];
+
+    while polys.len() > 1 {
+        let pairs = polys.len() / 2;
+        let has_odd = polys.len() % 2 == 1;
+
+        for i in 0..pairs {
+            let poly1_len = polys[2 * i].len();
+            let poly2_len = polys[2 * i + 1].len();
+            let new_degree = (poly1_len - 1) + (poly2_len - 1);
+            let domain_size = (new_degree + 1).next_power_of_two();
+            // TODO(cnode): instantiate Domain{...} in-line instead of using new(...) which performs a loop
+            let domain = Domain::new(domain_size.ilog2());
+            let n = domain.n();
+
+            scratch1[..poly1_len].copy_from_slice(&polys[2 * i]);
+            scratch1[poly1_len..n].fill(F::ZERO);
+            domain.fft(&mut scratch1[..n]);
+
+            scratch2[..poly2_len].copy_from_slice(&polys[2 * i + 1]);
+            scratch2[poly2_len..n].fill(F::ZERO);
+            domain.fft(&mut scratch2[..n]);
+
+            for j in 0..n {
+                scratch1[j] *= scratch2[j];
+            }
+
+            domain.ifft(&mut scratch1[..n]);
+
+            polys[i].clear();
+            polys[i].extend_from_slice(&scratch1[..new_degree + 1]);
+        }
+
+        if has_odd {
+            let last_idx = polys.len() - 1;
+            if pairs < last_idx {
+                polys.swap(pairs, last_idx);
+            }
+        }
+
+        polys.truncate(pairs + if has_odd { 1 } else { 0 });
+    }
+
+    polys.into_iter().next().unwrap()
+}
+
+#[cfg(test)]
+mod poly_with_roots_tests {
+    use super::*;
+    use alloc::format;
+    use ff::Field;
+    use pasta_curves::Fp as F;
+    use proptest::prelude::*;
+
+    fn check(roots: &[F]) -> Result<(), TestCaseError> {
+        let poly = poly_with_roots(roots);
+
+        // Correct degree
+        prop_assert_eq!(poly.len(), roots.len() + 1);
+
+        // Monic
+        prop_assert_eq!(poly.last(), Some(&F::ONE));
+
+        // Each root vanishes with correct multiplicity
+        let mut checked = vec![];
+        for &r in roots {
+            if checked.contains(&r) {
+                continue;
+            }
+            checked.push(r);
+            let k = roots.iter().filter(|&&x| x == r).count();
+            let mut q = poly.clone();
+            for _ in 0..k {
+                prop_assert_eq!(eval(&q, r), F::ZERO);
+                q = factor(q.iter().copied(), r);
+            }
+        }
+        Ok(())
+    }
+
+    fn size_strategy() -> impl Strategy<Value = usize> {
+        prop::sample::select(vec![
+            0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 633,
+        ])
+    }
+
+    fn arb_field_element() -> impl Strategy<Value = F> {
+        (0u64..10000).prop_map(|i| F::from(i) * F::MULTIPLICATIVE_GENERATOR + F::DELTA)
+    }
+
+    fn roots_strategy() -> impl Strategy<Value = Vec<F>> {
+        let w = Domain::<F>::new(6).omega();
+
+        prop_oneof![
+            // Distinct roots at boundary sizes
+            size_strategy().prop_map(|n| (0..n).map(|i| F::from(i as u64) + F::DELTA).collect()),
+            // Repeated roots at different tree levels
+            Just(vec![F::from(7); 2]), // level 0: (X-7)²
+            Just(vec![F::from(3); 4]), // level 1: (X-3)⁴
+            Just(vec![F::from(5); 8]), // FFT level: (X-5)⁸
+            // Zero roots (tests interaction with internal zero-padding)
+            Just(vec![F::ZERO, F::from(1), F::from(2)]),
+            Just(vec![F::ZERO; 5]),
+            // Roots of unity (vanishing polynomials)
+            Just((0..4).map(|i| w.pow([i * 16])).collect()), // 4th roots
+            Just((0..16).map(|i| w.pow([i * 4])).collect()), // 16th roots
+            Just((0..64).map(|i| w.pow([i as u64])).collect()), // 64th roots
+            // Mixed: repeated roots of unity + arbitrary elements
+            Just(vec![
+                w,
+                w,
+                w.square(),
+                w.square(),
+                F::from(42),
+                F::from(123)
+            ]),
+            // Random roots with random size
+            (1usize..100).prop_flat_map(|n| { proptest::collection::vec(arb_field_element(), n) }),
+            // All-same random root
+            (arb_field_element(), 1usize..20).prop_map(|(r, n)| vec![r; n]),
+        ]
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn test_poly_with_roots(roots in roots_strategy()) {
+            check(&roots)?;
+        }
+    }
+}
+
+#[test]
+fn test_poly_with_roots() {
+    use pasta_curves::Fp as F;
+
+    let roots = vec![F::from(1), F::from(2), F::from(3)];
+    let poly = poly_with_roots(&roots);
+
+    for &root in &roots {
+        assert_eq!(eval(&poly, root), F::ZERO);
+    }
+
+    let non_root = F::from(5);
+    assert_ne!(eval(&poly, non_root), F::ZERO);
+
+    let expected_coeffs = vec![F::from(6).neg(), F::from(11), F::from(6).neg(), F::ONE];
+    assert_eq!(poly, expected_coeffs);
+
+    let empty_roots: Vec<F> = vec![];
+    let constant_poly = poly_with_roots(&empty_roots);
+    assert_eq!(constant_poly, vec![F::ONE]);
 }
 
 #[test]

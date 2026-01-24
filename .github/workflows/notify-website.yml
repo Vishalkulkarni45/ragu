@@ -8,6 +8,7 @@ on:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
+    if: github.repository == 'tachyon-zcash/ragu'
     steps:
       - name: Trigger repository_dispatch in website
         uses: peter-evans/repository-dispatch@v3

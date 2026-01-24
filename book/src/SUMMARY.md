@@ -23,7 +23,6 @@
     - [Structured Vectors](protocol/prelim/structured_vectors.md)
     - [Nested Commitment](protocol/prelim/nested_commitment.md)
     - [Bulletproofs IPA](protocol/prelim/bulletproofs.md)
-    - [Constraint Systems](protocol/prelim/cs.md)
   - [Core Construction](protocol/core/index.md)
     - [Arithmetization](protocol/core/arithmetization.md)
     - [NARK](protocol/core/nark.md)
@@ -32,7 +31,7 @@
       - [Wiring Consistency](protocol/core/accumulation/wiring.md)
       - [Revdot Product](protocol/core/accumulation/revdot.md)
   - [Extensions](protocol/extensions/index.md)
-    - [Mesh Polynomial](protocol/extensions/mesh.md)
+    - [Registry Polynomial](protocol/extensions/registry.md)
     - [Endoscalars](protocol/extensions/endoscalar.md)
     - [Staging](protocol/extensions/staging.md)
   - [Recursion](protocol/recursion/index.md)
@@ -52,5 +51,6 @@
 
 # Appendices
 
+- [Bootle16 v.s. R1CS](appendix/cs.md)
 - [Related Work](appendix/related.md)
 - [Terminology](appendix/terminology.md)

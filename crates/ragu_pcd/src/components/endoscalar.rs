@@ -1,6 +1,6 @@
-//! Staged circuit implementation for endoscaling operations.
+//! MultiStage circuit implementation for endoscaling operations.
 //!
-//! This module provides the [`EndoscalingStep`] staged circuit, which computes
+//! This module provides the [`EndoscalingStep`] multi-stage circuit, which computes
 //! iterated endoscalar multiplications using Horner's rule. Each step performs
 //! up to 4 endoscalings, storing the result in an interstitial slot.
 //!
@@ -21,7 +21,7 @@ use ff::{Field, WithSmallOrderMulGroup};
 use pasta_curves::group::{Curve, prime::PrimeCurveAffine};
 use ragu_circuits::{
     polynomials::Rank,
-    staging::{Stage, StageBuilder, StagedCircuit},
+    staging::{MultiStageCircuit, Stage, StageBuilder},
 };
 use ragu_core::{
     Result,
@@ -249,7 +249,7 @@ pub struct EndoscalingStepWitness<'source, C: CurveAffine, const NUM_POINTS: usi
     pub points: &'source PointsWitness<C, NUM_POINTS>,
 }
 
-impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> StagedCircuit<C::Base, R>
+impl<C: CurveAffine, R: Rank, const NUM_POINTS: usize> MultiStageCircuit<C::Base, R>
     for EndoscalingStep<C, R, NUM_POINTS>
 {
     type Final = PointsStage<C, NUM_POINTS>;
@@ -330,7 +330,7 @@ mod tests {
     use ragu_circuits::{
         CircuitExt,
         polynomials::{self},
-        staging::{StageExt, Staged},
+        staging::{MultiStage, StageExt},
     };
     use ragu_core::{
         Result,
@@ -429,15 +429,15 @@ mod tests {
         // Verify final interstitial matches expected
         assert_eq!(points.interstitials[num_steps - 1], expected);
 
-        // Run each step through the staged circuit and verify correctness.
+        // Run each step through the multi-stage circuit and verify correctness.
         for step in 0..num_steps {
             let step_circuit = EndoscalingStep::<EpAffine, R, NUM_POINTS>::new(step);
 
-            let staged = Staged::new(step_circuit.clone());
+            let staged = MultiStage::new(step_circuit.clone());
 
-            let endoscalar_s = EndoscalarStage::into_object()?;
-            let points_s = PointsStage::<EpAffine, NUM_POINTS>::into_object()?;
-            let final_s = PointsStage::<EpAffine, NUM_POINTS>::final_into_object()?;
+            let endoscalar_mask = EndoscalarStage::mask()?;
+            let points_mask = PointsStage::<EpAffine, NUM_POINTS>::mask()?;
+            let final_mask = PointsStage::<EpAffine, NUM_POINTS>::final_mask()?;
 
             let endoscalar_rx = <EndoscalarStage as StageExt<Fp, R>>::rx(endoscalar)?;
             let points_rx = <PointsStage<EpAffine, NUM_POINTS> as StageExt<Fp, R>>::rx(&points)?;
@@ -455,9 +455,9 @@ mod tests {
             let y = Fp::random(thread_rng());
 
             // Verify revdot identities for each stage.
-            assert_eq!(endoscalar_rx.revdot(&endoscalar_s.sy(y, key)), Fp::ZERO);
-            assert_eq!(points_rx.revdot(&points_s.sy(y, key)), Fp::ZERO);
-            assert_eq!(final_rx.revdot(&final_s.sy(y, key)), Fp::ZERO);
+            assert_eq!(endoscalar_rx.revdot(&endoscalar_mask.sy(y, key)), Fp::ZERO);
+            assert_eq!(points_rx.revdot(&points_mask.sy(y, key)), Fp::ZERO);
+            assert_eq!(final_rx.revdot(&final_mask.sy(y, key)), Fp::ZERO);
 
             // Verify combined circuit identity.
             let mut lhs = final_rx.clone();
@@ -499,11 +499,11 @@ mod tests {
         // Verify final interstitial matches expected
         assert_eq!(points.interstitials[num_steps - 1], expected);
 
-        // Run each step through the staged circuit.
+        // Run each step through the multi-stage circuit.
         for step in 0..num_steps {
             let step_circuit = EndoscalingStep::<EpAffine, R, NUM_POINTS>::new(step);
 
-            let staged = Staged::new(step_circuit.clone());
+            let staged = MultiStage::new(step_circuit.clone());
 
             let key = Fp::ONE;
             let (final_rx, _) = staged.rx::<R>(

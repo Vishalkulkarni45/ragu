@@ -79,23 +79,12 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 
     /// Creates a new polynomial with random coefficients.
     pub fn random<RNG: Rng>(rng: &mut RNG) -> Self {
-        let mut u = Vec::with_capacity(R::n());
-        let mut v = Vec::with_capacity(R::n());
-        let mut w = Vec::with_capacity(R::n());
-        let mut d = Vec::with_capacity(R::n());
-
-        for _ in 0..R::n() {
-            u.push(F::random(&mut *rng));
-            v.push(F::random(&mut *rng));
-            w.push(F::random(&mut *rng));
-            d.push(F::random(&mut *rng));
-        }
-
+        let mut random_vec = || (0..R::n()).map(|_| F::random(&mut *rng)).collect();
         Self {
-            u,
-            v,
-            w,
-            d,
+            u: random_vec(),
+            v: random_vec(),
+            w: random_vec(),
+            d: random_vec(),
             _marker: core::marker::PhantomData,
         }
     }

@@ -9,6 +9,7 @@ extend-exclude = [
   "*.yaml",
   "*.yml",
   "*.lock",
+  "*.svg",
   "target/",
   "node_modules/",
 ]
