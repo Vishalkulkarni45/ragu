@@ -193,15 +193,15 @@ impl<F: Field, R: Rank> Stage<F, R> for () {
 /// Represents an actual circuit (much like a [`Circuit`]) with portions of its
 /// witness computed in stages.
 pub trait MultiStageCircuit<F: Field, R: Rank>: Sized + Send + Sync {
-    /// The last normal stage of this multi-stage circuit.
+    /// The last explicitly defined stage of this multi-stage circuit.
     ///
-    /// This is the last explicitly defined stage, but it is the penultimate
-    /// stage in the overall multi-stage circuit, as the final stage is implicit.
-    /// The final stage ($f(x)$) is implicitly part of the
-    /// [`MultiStageCircuit::witness`] method, which describes the entire
-    /// multi-stage computation covering from the first to the last normal
-    /// stage ($a(x)$ to $b(x)$), and the implicit final stage which consumes
-    /// the output gadgets from all previous stages.
+    /// The witness polynomial has the form `r(X) = r'(X) + a(X) + b(X) + ...`
+    /// where `a(X), b(X), ...` are stage polynomials (defined via [`Stage`],
+    /// independently committable) and `r'(X)` is the "final" witness.
+    ///
+    /// `Last` is the final polynomial in the `a(X), b(X), ...` sequence. The "final"
+    /// witness `r'(X)` is computed implicitly in [`witness`](Self::witness), which
+    /// consumes outputs from all stage polynomials.
     type Last: Stage<F, R>;
 
     /// The type of data that is needed to construct the expected output of this
