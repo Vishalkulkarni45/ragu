@@ -188,10 +188,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> MultiStageCircuit<C::CircuitFi
             let (computed_ax, computed_bx) = {
                 let mu = unified_output.mu.get(dr, unified_instance)?;
                 let nu = unified_output.nu.get(dr, unified_instance)?;
+
                 let mu_prime = unified_output.mu_prime.get(dr, unified_instance)?;
                 let nu_prime = unified_output.nu_prime.get(dr, unified_instance)?;
-                let mu_inv = mu.invert(dr)?;
-                let mu_prime_inv = mu_prime.invert(dr)?;
+            
+                let invs = batch_invert(dr, &[mu.clone(), mu_prime.clone()])?;
+                let mu_inv = &invs[0];
+                let mu_prime_inv = &invs[1];
+                
                 let munu = mu.mul(dr, &nu)?;
                 let mu_prime_nu_prime = mu_prime.mul(dr, &nu_prime)?;
 
@@ -259,6 +263,37 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> MultiStageCircuit<C::CircuitFi
     }
 }
 
+/// Batch invert a slice of elements using Montgomery's trick.
+///
+/// Computes [a₀⁻¹, a₁⁻¹, ..., aₙ⁻¹] from [a₀, a₁, ..., aₙ] using:
+/// - 1 field inversion + 3(n-1) field multiplications
+///
+/// Requires n ≥ 2. For single inversions, call `.invert()` directly.
+fn batch_invert<'dr, D: Driver<'dr>>(
+    dr: &mut D,
+    elements: &[Element<'dr, D>],
+) -> Result<Vec<Element<'dr, D>>>
+where
+    D::F: ff::PrimeField,
+{
+    let n = elements.len();
+
+    let mut products = Vec::with_capacity(n);
+    products.push(elements[0].clone());
+    for i in 1..n {
+        products.push(products[i - 1].mul(dr, &elements[i])?);
+    }
+
+    let mut inv = products[n - 1].invert(dr)?;
+    for i in (1..n).rev() {
+        products[i] = products[i - 1].mul(dr, &inv)?;
+        inv = inv.mul(dr, &elements[i])?;
+    }
+    products[0] = inv;
+
+    Ok(products)
+}
+
 /// Denominators for a single child proof evaluation points.
 struct ChildDenominators<'dr, D: Driver<'dr>> {
     u: Element<'dr, D>,
@@ -324,48 +359,75 @@ impl<'dr, D: Driver<'dr>> Denominators<'dr, D> {
     where
         D::F: ff::PrimeField,
     {
-        use super::InternalCircuitIndex::{self, *};
-
-        let internal_denom = |dr: &mut D, idx: InternalCircuitIndex| -> Result<Element<'dr, D>> {
-            let omega_j = Element::constant(dr, idx.circuit_index(num_application_steps).omega_j());
-            u.sub(dr, &omega_j).invert(dr)
-        };
+        use super::InternalCircuitIndex::*;
 
         let xz = x.mul(dr, z)?;
 
+        // Collect all (u - x_i) values for batch inversion
+        let mut to_invert = Vec::with_capacity(25);
+        
+        // Left child proof points
+        to_invert.push(u.sub(dr, &preamble.left.unified.u));
+        to_invert.push(u.sub(dr, &preamble.left.unified.y));
+        to_invert.push(u.sub(dr, &preamble.left.unified.x));
+        to_invert.push(u.sub(dr, &preamble.left.circuit_id));
+        
+        // Right child proof points
+        to_invert.push(u.sub(dr, &preamble.right.unified.u));
+        to_invert.push(u.sub(dr, &preamble.right.unified.y));
+        to_invert.push(u.sub(dr, &preamble.right.unified.x));
+        to_invert.push(u.sub(dr, &preamble.right.circuit_id));
+        
+        // Challenge points
+        to_invert.push(u.sub(dr, w));
+        to_invert.push(u.sub(dr, x));
+        to_invert.push(u.sub(dr, y));
+        to_invert.push(u.sub(dr, &xz));
+        
+        // Internal circuit omega^j points
+        for idx in [PreambleStage, ErrorNStage, ErrorMStage, QueryStage, EvalStage,
+                    ErrorMFinalStaged, ErrorNFinalStaged, EvalFinalStaged,
+                    Hashes1Circuit, Hashes2Circuit, PartialCollapseCircuit,
+                    FullCollapseCircuit, ComputeVCircuit] {
+            let omega_j = Element::constant(dr, idx.circuit_index(num_application_steps).omega_j());
+            to_invert.push(u.sub(dr, &omega_j));
+        }
+
+        let inv = batch_invert(dr, &to_invert)?;
+        
         Ok(Denominators {
             left: ChildDenominators {
-                u:          u.sub(dr, &preamble.left.unified.u).invert(dr)?,
-                y:          u.sub(dr, &preamble.left.unified.y).invert(dr)?,
-                x:          u.sub(dr, &preamble.left.unified.x).invert(dr)?,
-                circuit_id: u.sub(dr, &preamble.left.circuit_id).invert(dr)?,
+                u: inv[0].clone(),          // (u - left.u)^-1
+                y: inv[1].clone(),          // (u - left.y)^-1
+                x: inv[2].clone(),          // (u - left.x)^-1
+                circuit_id: inv[3].clone(), // (u - left.circuit_id)^-1
             },
             right: ChildDenominators {
-                u:          u.sub(dr, &preamble.right.unified.u).invert(dr)?,
-                y:          u.sub(dr, &preamble.right.unified.y).invert(dr)?,
-                x:          u.sub(dr, &preamble.right.unified.x).invert(dr)?,
-                circuit_id: u.sub(dr, &preamble.right.circuit_id).invert(dr)?,
+                u: inv[4].clone(),          // (u - right.u)^-1
+                y: inv[5].clone(),          // (u - right.y)^-1
+                x: inv[6].clone(),          // (u - right.x)^-1
+                circuit_id: inv[7].clone(), // (u - right.circuit_id)^-1
             },
             challenges: ChallengeDenominators {
-                w:  u.sub(dr, w).invert(dr)?,
-                x:  u.sub(dr, x).invert(dr)?,
-                y:  u.sub(dr, y).invert(dr)?,
-                xz: u.sub(dr, &xz).invert(dr)?,
+                w: inv[8].clone(),          // (u - w)^-1
+                x: inv[9].clone(),          // (u - x)^-1
+                y: inv[10].clone(),         // (u - y)^-1
+                xz: inv[11].clone(),        // (u - xz)^-1
             },
             internal: InternalCircuitDenominators {
-                preamble_stage:           internal_denom(dr, PreambleStage)?,
-                error_n_stage:            internal_denom(dr, ErrorNStage)?,
-                error_m_stage:            internal_denom(dr, ErrorMStage)?,
-                query_stage:              internal_denom(dr, QueryStage)?,
-                eval_stage:               internal_denom(dr, EvalStage)?,
-                error_m_final_staged:     internal_denom(dr, ErrorMFinalStaged)?,
-                error_n_final_staged:     internal_denom(dr, ErrorNFinalStaged)?,
-                eval_final_staged:        internal_denom(dr, EvalFinalStaged)?,
-                hashes_1_circuit:         internal_denom(dr, Hashes1Circuit)?,
-                hashes_2_circuit:         internal_denom(dr, Hashes2Circuit)?,
-                partial_collapse_circuit: internal_denom(dr, PartialCollapseCircuit)?,
-                full_collapse_circuit:    internal_denom(dr, FullCollapseCircuit)?,
-                compute_v_circuit:        internal_denom(dr, ComputeVCircuit)?,
+                preamble_stage: inv[12].clone(),           // (u - ω^j_preamble)^-1
+                error_n_stage: inv[13].clone(),            // (u - ω^j_error_n)^-1
+                error_m_stage: inv[14].clone(),            // (u - ω^j_error_m)^-1
+                query_stage: inv[15].clone(),              // (u - ω^j_query)^-1
+                eval_stage: inv[16].clone(),               // (u - ω^j_eval)^-1
+                error_m_final_staged: inv[17].clone(),     // (u - ω^j_error_m_final)^-1
+                error_n_final_staged: inv[18].clone(),     // (u - ω^j_error_n_final)^-1
+                eval_final_staged: inv[19].clone(),        // (u - ω^j_eval_final)^-1
+                hashes_1_circuit: inv[20].clone(),         // (u - ω^j_hashes_1)^-1
+                hashes_2_circuit: inv[21].clone(),         // (u - ω^j_hashes_2)^-1
+                partial_collapse_circuit: inv[22].clone(), // (u - ω^j_partial_collapse)^-1
+                full_collapse_circuit: inv[23].clone(),    // (u - ω^j_full_collapse)^-1
+                compute_v_circuit: inv[24].clone(),        // (u - ω^j_compute_v)^-1
             },
         })
     }
