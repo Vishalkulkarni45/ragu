@@ -262,3 +262,121 @@ mod nested {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ApplicationBuilder;
+    use ff::Field;
+    use ragu_circuits::{polynomials::R, registry::CircuitIndex};
+    use ragu_pasta::Pasta;
+    use rand::{SeedableRng, rngs::StdRng};
+
+    type TestR = R<13>;
+    const HEADER_SIZE: usize = 4;
+
+    fn create_test_app() -> crate::Application<'static, Pasta, TestR, HEADER_SIZE> {
+        let pasta = Pasta::baked();
+        ApplicationBuilder::<Pasta, TestR, HEADER_SIZE>::new()
+            .finalize(pasta)
+            .expect("failed to create test application")
+    }
+
+    #[test]
+    fn verify_rejects_invalid_circuit_id() {
+        let app = create_test_app();
+        let mut rng = StdRng::seed_from_u64(1234);
+
+        // Create a valid trivial proof
+        let mut proof = app.trivial_proof();
+
+        // Corrupt the circuit_id to be outside the registry domain
+        proof.application.circuit_id = CircuitIndex::new(u32::MAX as usize);
+
+        let pcd = proof.carry::<()>(());
+        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
+        assert!(!result, "verify should reject invalid circuit_id");
+    }
+
+    #[test]
+    fn verify_rejects_wrong_left_header_size() {
+        let app = create_test_app();
+        let mut rng = StdRng::seed_from_u64(1234);
+
+        // Create a valid trivial proof
+        let mut proof = app.trivial_proof();
+
+        // Corrupt left_header to have wrong size
+        proof.application.left_header =
+            alloc::vec![<Pasta as Cycle>::CircuitField::ZERO; HEADER_SIZE + 1];
+
+        let pcd = proof.carry::<()>(());
+        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
+        assert!(!result, "verify should reject wrong left_header size");
+    }
+
+    #[test]
+    fn verify_rejects_wrong_right_header_size() {
+        let app = create_test_app();
+        let mut rng = StdRng::seed_from_u64(1234);
+
+        // Create a valid trivial proof
+        let mut proof = app.trivial_proof();
+
+        // Corrupt right_header to have wrong size
+        proof.application.right_header =
+            alloc::vec![<Pasta as Cycle>::CircuitField::ZERO; HEADER_SIZE - 1];
+
+        let pcd = proof.carry::<()>(());
+        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
+        assert!(!result, "verify should reject wrong right_header size");
+    }
+
+    #[test]
+    fn verify_rejects_corrupted_p_commitment() {
+        let app = create_test_app();
+        let mut rng = StdRng::seed_from_u64(1234);
+
+        // Create a valid trivial proof
+        let mut proof = app.trivial_proof();
+
+        // Corrupt the P commitment by changing the blind
+        proof.p.blind = <Pasta as Cycle>::CircuitField::from(999u64);
+
+        let pcd = proof.carry::<()>(());
+        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
+        assert!(!result, "verify should reject corrupted P commitment");
+    }
+
+    #[test]
+    fn verify_rejects_corrupted_p_evaluation() {
+        let app = create_test_app();
+        let mut rng = StdRng::seed_from_u64(1234);
+
+        // Create a valid trivial proof
+        let mut proof = app.trivial_proof();
+
+        // Corrupt the P evaluation value
+        proof.p.v = <Pasta as Cycle>::CircuitField::from(12345u64);
+
+        let pcd = proof.carry::<()>(());
+        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
+        assert!(!result, "verify should reject corrupted P evaluation");
+    }
+
+    #[test]
+    fn verify_rejects_corrupted_ab_c() {
+        let app = create_test_app();
+        let mut rng = StdRng::seed_from_u64(1234);
+
+        // Create a valid trivial proof
+        let mut proof = app.trivial_proof();
+
+        // Corrupt the ab.c value (raw_c used in revdot claims)
+        proof.ab.c = <Pasta as Cycle>::CircuitField::from(99999u64);
+
+        let pcd = proof.carry::<()>(());
+        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
+        assert!(!result, "verify should reject corrupted ab.c value");
+    }
+}
