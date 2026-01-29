@@ -76,3 +76,15 @@ pub enum Prediction<T, A> {
     /// the driver should simply execute it to obtain the result.
     Unknown(A),
 }
+
+impl<T, A> Prediction<T, A> {
+    /// Extract auxiliary data, discarding the output prediction.
+    ///
+    /// Circuit synthesis drivers don't care whether the output was predicted, they
+    /// always call [`Routine::execute`] anyway. This helper makes that explicit.
+    pub fn into_aux(self) -> A {
+        match self {
+            Prediction::Known(_, aux) | Prediction::Unknown(aux) => aux,
+        }
+    }
+}

@@ -55,7 +55,7 @@ use crate::{
     Result,
     gadgets::GadgetKind,
     maybe::{Maybe, MaybeKind},
-    routines::{Prediction, Routine},
+    routines::Routine,
 };
 
 pub use linexp::{DirectSum, LinearExpression};
@@ -199,11 +199,8 @@ pub trait Driver<'dr>: DriverTypes<ImplWire = Self::Wire, ImplField = Self::F> +
     ) -> Result<<R::Output as GadgetKind<Self::F>>::Rebind<'dr, Self>> {
         let mut dummy = emulator::Emulator::wireless();
         let dummy_input = R::Input::map_gadget(&input, &mut dummy)?;
-        match routine.predict(&mut dummy, &dummy_input)? {
-            Prediction::Known(_, aux) | Prediction::Unknown(aux) => {
-                routine.execute(self, input, aux)
-            }
-        }
+        let aux = routine.predict(&mut dummy, &dummy_input)?.into_aux();
+        routine.execute(self, input, aux)
     }
 }
 
