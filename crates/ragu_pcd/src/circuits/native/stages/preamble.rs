@@ -67,7 +67,7 @@ impl<'a, C: Cycle, R: Rank, const HEADER_SIZE: usize> Witness<'a, C, R, HEADER_S
 }
 
 /// Headers claimed by a child proof for its own left and right children.
-#[derive(Gadget)]
+#[derive(Gadget, Consistent)]
 pub struct ChildHeaders<'dr, D: Driver<'dr>, const HEADER_SIZE: usize> {
     /// Left child header (grandchild from current perspective).
     #[ragu(gadget)]
@@ -75,14 +75,6 @@ pub struct ChildHeaders<'dr, D: Driver<'dr>, const HEADER_SIZE: usize> {
     /// Right child header (grandchild from current perspective).
     #[ragu(gadget)]
     pub right: HeaderVec<'dr, D, HEADER_SIZE>,
-}
-
-impl<'dr, D: Driver<'dr>, const HEADER_SIZE: usize> Consistent<'dr, D>
-    for ChildHeaders<'dr, D, HEADER_SIZE>
-{
-    fn enforce_consistent(&self, _: &mut D) -> Result<()> {
-        Ok(())
-    }
 }
 
 /// Processed inputs from a single child proof in the preamble stage.

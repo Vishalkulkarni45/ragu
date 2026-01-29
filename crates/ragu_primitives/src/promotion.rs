@@ -104,9 +104,9 @@ impl<'dr, 'new_dr, D: Driver<'dr>, F: FromDriver<'dr, 'new_dr, D>>
 ///
 /// # Consistency
 ///
-/// `Demoted` intentionally does not implement [`Consistent`]. A demoted gadget
+/// `Demoted` intentionally does not implement `Consistent`. A demoted gadget
 /// has no witness data, so it cannot meaningfully enforce consistency. Promote
-/// the gadget first, then call [`Consistent::enforce_consistent`] on the result.
+/// the gadget first, then call `enforce_consistent` on the result.
 pub struct Demoted<'dr, D: Driver<'dr>, G: Gadget<'dr, D>> {
     gadget: <G::Kind as GadgetKind<D::F>>::Rebind<'dr, DemotedDriver<'dr, D>>,
 }

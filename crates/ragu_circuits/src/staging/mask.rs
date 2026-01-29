@@ -532,18 +532,14 @@ mod tests {
     #[derive(Default)]
     struct ConstrainedStage;
 
-    #[derive(ragu_core::gadgets::Gadget, ragu_primitives::io::Write)]
+    #[derive(
+        ragu_core::gadgets::Gadget, ragu_core::gadgets::Consistent, ragu_primitives::io::Write,
+    )]
     struct TwoElements<'dr, #[ragu(driver)] D: Driver<'dr>> {
         #[ragu(gadget)]
         a: Element<'dr, D>,
         #[ragu(gadget)]
         b: Element<'dr, D>,
-    }
-
-    impl<'dr, D: Driver<'dr>> ragu_core::gadgets::Consistent<'dr, D> for TwoElements<'dr, D> {
-        fn enforce_consistent(&self, _: &mut D) -> ragu_core::Result<()> {
-            Ok(())
-        }
     }
 
     impl Stage<Fp, R> for ConstrainedStage {
