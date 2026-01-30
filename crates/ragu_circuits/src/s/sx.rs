@@ -69,7 +69,7 @@ use ragu_core::{
     drivers::{Driver, DriverTypes, emulator::Emulator},
     gadgets::GadgetKind,
     maybe::Empty,
-    routines::{Prediction, Routine},
+    routines::Routine,
 };
 use ragu_primitives::GadgetExt;
 
@@ -259,11 +259,8 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<F, R> {
         let tmp = self.available_b.take();
         let mut dummy = Emulator::wireless();
         let dummy_input = Ro::Input::map_gadget(&input, &mut dummy)?;
-        let result = match routine.predict(&mut dummy, &dummy_input)? {
-            Prediction::Known(_, aux) | Prediction::Unknown(aux) => {
-                routine.execute(self, input, aux)?
-            }
-        };
+        let aux = routine.predict(&mut dummy, &dummy_input)?.into_aux();
+        let result = routine.execute(self, input, aux)?;
 
         // Restore the allocation logic state, discarding the state from within
         // the routine.
