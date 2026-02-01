@@ -33,19 +33,6 @@ impl<'dr, D: Driver<'dr, F = C::Base>, C: CurveAffine> Point<'dr, D, C> {
         }
     }
 
-    /// Enforce the curve equation: x^3 + b - y^2 = 0.
-    fn enforce_curve_equation(
-        dr: &mut D,
-        x3: &Element<'dr, D>,
-        y2: &Element<'dr, D>,
-    ) -> Result<()> {
-        dr.enforce_zero(|lc| {
-            lc.add(x3.wire())
-                .add_term(&D::ONE, Coeff::Arbitrary(C::b()))
-                .sub(y2.wire())
-        })
-    }
-
     /// Allocate a point on the curve. This will return an error if the provided
     /// point is at infinity.
     ///
@@ -63,7 +50,12 @@ impl<'dr, D: Driver<'dr, F = C::Base>, C: CurveAffine> Point<'dr, D, C> {
         let x3 = x.mul(dr, &x2)?;
         let (y, y2) = Element::alloc_square(dr, coordinates.view().map(|p| *p.y()))?;
 
-        Self::enforce_curve_equation(dr, &x3, &y2)?;
+        // Enforce x³ + b - y² = 0
+        dr.enforce_zero(|lc| {
+            lc.add(x3.wire())
+                .add_term(&D::ONE, Coeff::Arbitrary(C::b()))
+                .sub(y2.wire())
+        })?;
 
         Ok(Point::new_unchecked(x, y))
     }
@@ -216,11 +208,7 @@ impl<'dr, D: Driver<'dr, F = C::Base>, C: CurveAffine> Point<'dr, D, C> {
 
 impl<'dr, D: Driver<'dr, F = C::Base>, C: CurveAffine> Consistent<'dr, D> for Point<'dr, D, C> {
     fn enforce_consistent(&self, dr: &mut D) -> Result<()> {
-        let x2 = self.x.square(dr)?;
-        let x3 = self.x.mul(dr, &x2)?;
-        let y2 = self.y.square(dr)?;
-
-        Self::enforce_curve_equation(dr, &x3, &y2)
+        Self::alloc(dr, self.value())?.enforce_equal(dr, self)
     }
 }
 
