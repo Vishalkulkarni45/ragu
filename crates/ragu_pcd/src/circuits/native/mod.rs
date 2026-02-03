@@ -1,7 +1,7 @@
 //! Native curve circuits for recursive verification.
 
 use arithmetic::Cycle;
-use ragu_circuits::{polynomials::Rank, registry::CircuitIndex, staging::StageExt};
+use ragu_circuits::{polynomials::Rank, registry::CircuitIndex};
 use ragu_core::Result;
 
 use super::NativeParameters;
@@ -69,37 +69,23 @@ pub(crate) fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
     // Insert the stages.
     {
         // preamble stage
-        registry =
-            registry.register_offset_circuit_object(
-                stages::preamble::Stage::<C, R, HEADER_SIZE>::mask()?,
-            )?;
+        registry = registry.register_offset_mask::<stages::preamble::Stage<C, R, HEADER_SIZE>>()?;
 
         // error_m stage
-        registry = registry.register_offset_circuit_object(stages::error_m::Stage::<
-            C,
-            R,
-            HEADER_SIZE,
-            NativeParameters,
-        >::mask()?)?;
-
-        // error_n stage
-        registry = registry.register_offset_circuit_object(stages::error_n::Stage::<
-            C,
-            R,
-            HEADER_SIZE,
-            NativeParameters,
-        >::mask()?)?;
-
-        // query stage
-        registry =
-            registry.register_offset_circuit_object(
-                stages::query::Stage::<C, R, HEADER_SIZE>::mask()?,
+        registry = registry
+            .register_offset_mask::<stages::error_m::Stage<C, R, HEADER_SIZE, NativeParameters>>(
             )?;
 
+        // error_n stage
+        registry = registry
+            .register_offset_mask::<stages::error_n::Stage<C, R, HEADER_SIZE, NativeParameters>>(
+            )?;
+
+        // query stage
+        registry = registry.register_offset_mask::<stages::query::Stage<C, R, HEADER_SIZE>>()?;
+
         // eval stage
-        registry =
-            registry
-                .register_offset_circuit_object(stages::eval::Stage::<C, R, HEADER_SIZE>::mask()?)?;
+        registry = registry.register_offset_mask::<stages::eval::Stage<C, R, HEADER_SIZE>>()?;
     }
 
     // Insert the "final stage polynomials" for each stage.
@@ -108,26 +94,24 @@ pub(crate) fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
     // stage is only registered once here.
     {
         // preamble -> error_n -> error_m -> [CIRCUIT] (partial_collapse)
-        registry = registry.register_offset_circuit_object(stages::error_m::Stage::<
+        registry = registry.register_offset_final_mask::<stages::error_m::Stage<
             C,
             R,
             HEADER_SIZE,
             NativeParameters,
-        >::final_mask()?)?;
+        >>()?;
 
         // preamble -> error_n -> [CIRCUIT] (hashes_1, hashes_2, full_collapse)
-        registry = registry.register_offset_circuit_object(stages::error_n::Stage::<
+        registry = registry.register_offset_final_mask::<stages::error_n::Stage<
             C,
             R,
             HEADER_SIZE,
             NativeParameters,
-        >::final_mask()?)?;
+        >>()?;
 
         // preamble -> query -> eval -> [CIRCUIT] (compute_v)
         registry =
-            registry.register_offset_circuit_object(
-                stages::eval::Stage::<C, R, HEADER_SIZE>::final_mask()?,
-            )?;
+            registry.register_offset_final_mask::<stages::eval::Stage<C, R, HEADER_SIZE>>()?;
     }
 
     // Insert the internal circuits.

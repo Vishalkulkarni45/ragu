@@ -4,12 +4,7 @@
 //! commitment accumulation was computed correctly via Horner's rule.
 
 use arithmetic::Cycle;
-use ragu_circuits::{
-    CircuitExt,
-    polynomials::Rank,
-    registry::CircuitIndex,
-    staging::{MultiStage, StageExt},
-};
+use ragu_circuits::{polynomials::Rank, registry::CircuitIndex, staging::MultiStage};
 use ragu_core::Result;
 use ragu_primitives::vec::Len;
 
@@ -63,21 +58,18 @@ pub mod stages;
 pub(crate) fn register_all<'params, C: Cycle, R: Rank>(
     mut registry: NestedRegistryBuilder<'params, C, R>,
 ) -> Result<NestedRegistryBuilder<'params, C, R>> {
-    registry = registry.register_circuit_object(EndoscalarStage::mask()?)?;
+    registry = registry.register_mask::<EndoscalarStage>()?;
 
-    registry = registry
-        .register_circuit_object(PointsStage::<C::HostCurve, NUM_ENDOSCALING_POINTS>::mask()?)?;
+    registry = registry.register_mask::<PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS>>()?;
 
-    registry = registry
-        .register_circuit_object(
-            PointsStage::<C::HostCurve, NUM_ENDOSCALING_POINTS>::final_mask()?,
-        )?;
+    registry =
+        registry.register_final_mask::<PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS>>()?;
 
     let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
     for step in 0..num_steps {
         let step_circuit = EndoscalingStep::<C::HostCurve, R, NUM_ENDOSCALING_POINTS>::new(step);
         let staged = MultiStage::new(step_circuit);
-        registry = registry.register_circuit_object(staged.into_object()?)?;
+        registry = registry.register_circuit(staged)?;
     }
     Ok(registry)
 }

@@ -22,32 +22,61 @@ use ragu_primitives::{Element, poseidon::Sponge};
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 
+use core::marker::PhantomData;
+
 use crate::{
     Circuit, CircuitExt, CircuitObject,
     polynomials::{Rank, structured, unstructured},
+    staging::{Stage, StageExt, mask::StageMask},
 };
 
-/// Circuit that defers synthesis until [`RegistryBuilder::finalize`].
-trait DeferredCircuit<'a, F: Field, R: Rank>: Send + Sync {
+/// Trait for types that defer materialization until [`RegistryBuilder::finalize`].
+trait Deferrable<'a, F: Field, R: Rank>: Send + Sync {
     /// Convert to a [`CircuitObject`], synthesizing if needed.
     fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>>;
 }
 
-/// Deferred circuit wrapper; calls [`CircuitExt::into_object`] on materialize.
-struct Deferred<C>(C);
+/// Deferred circuit; calls [`CircuitExt::into_object`] on materialize.
+struct DeferredCircuit<C>(C);
 
-impl<'a, F: Field, R: Rank, C: Circuit<F> + 'a> DeferredCircuit<'a, F, R> for Deferred<C> {
+impl<'a, F: Field, R: Rank, C: Circuit<F> + 'a> Deferrable<'a, F, R> for DeferredCircuit<C> {
     fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>> {
         self.0.into_object()
     }
 }
 
-/// Pre-built [`CircuitObject`] wrapper; returns itself on materialize.
-struct Materialized<'a, F: Field, R: Rank>(Box<dyn CircuitObject<F, R> + 'a>);
+/// Deferred mask wrapper; creates [`StageMask`] on materialize.
+struct DeferredMask<S, R>(PhantomData<fn() -> (S, R)>);
 
-impl<'a, F: Field, R: Rank> DeferredCircuit<'a, F, R> for Materialized<'a, F, R> {
+impl<S, R> Default for DeferredMask<S, R> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<'a, F: Field, R: Rank, S: Stage<F, R> + 'a> Deferrable<'a, F, R> for DeferredMask<S, R> {
     fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>> {
-        Ok(self.0)
+        Ok(Box::new(StageMask::new(
+            S::skip_multiplications(),
+            S::num_multiplications(),
+        )?))
+    }
+}
+
+/// Deferred final mask wrapper; creates [`StageMask`] with `new_final` on materialize.
+struct DeferredFinalMask<S, R>(PhantomData<fn() -> (S, R)>);
+
+impl<S, R> Default for DeferredFinalMask<S, R> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<'a, F: Field, R: Rank, S: Stage<F, R> + 'a> Deferrable<'a, F, R> for DeferredFinalMask<S, R> {
+    fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>> {
+        Ok(Box::new(StageMask::new_final(
+            S::skip_multiplications() + S::num_multiplications(),
+        )?))
     }
 }
 
@@ -90,7 +119,7 @@ impl CircuitIndex {
 /// avoiding synthesis overhead during registration. The `OFFSET` parameter
 /// reserves slots at the beginning for internal circuits.
 pub struct RegistryBuilder<'params, F: PrimeField, R: Rank, const OFFSET: usize> {
-    circuits: Vec<Box<dyn DeferredCircuit<'params, F, R> + 'params>>,
+    circuits: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
     num_offset_registered: usize,
 }
 
@@ -103,11 +132,11 @@ impl<F: PrimeField, R: Rank, const OFFSET: usize> Default for RegistryBuilder<'_
 impl<'params, F: PrimeField, R: Rank, const OFFSET: usize> RegistryBuilder<'params, F, R, OFFSET> {
     /// Creates a new [`Registry`] builder.
     pub fn new() -> Self {
-        let mut circuits: Vec<Box<dyn DeferredCircuit<'params, F, R> + 'params>> = Vec::new();
+        let mut circuits: Vec<Box<dyn Deferrable<'params, F, R> + 'params>> = Vec::new();
 
         // Pre-fill offset slots with deferred trivial circuits
         for _ in 0..OFFSET {
-            circuits.push(Box::new(Deferred(())));
+            circuits.push(Box::new(DeferredCircuit(())));
         }
 
         Self {
@@ -136,25 +165,35 @@ impl<'params, F: PrimeField, R: Rank, const OFFSET: usize> RegistryBuilder<'para
     where
         C: Circuit<F> + 'params,
     {
-        self.circuits.push(Box::new(Deferred(circuit)));
+        self.circuits.push(Box::new(DeferredCircuit(circuit)));
 
         Ok(self)
     }
 
-    /// Registers a pre-built circuit object.
-    pub fn register_circuit_object(
-        mut self,
-        circuit: Box<dyn CircuitObject<F, R> + 'params>,
-    ) -> Result<Self> {
-        self.circuits.push(Box::new(Materialized(circuit)));
+    /// Registers a stage mask (mask creation deferred until finalization).
+    pub fn register_mask<S>(mut self) -> Result<Self>
+    where
+        S: Stage<F, R> + 'params,
+    {
+        self.circuits
+            .push(Box::new(DeferredMask::<S, R>::default()));
+        Ok(self)
+    }
 
+    /// Registers a final stage mask (mask creation deferred until finalization).
+    pub fn register_final_mask<S>(mut self) -> Result<Self>
+    where
+        S: Stage<F, R> + 'params,
+    {
+        self.circuits
+            .push(Box::new(DeferredFinalMask::<S, R>::default()));
         Ok(self)
     }
 
     /// Inserts a deferred circuit into the next offset slot.
     fn push_offset(
         &mut self,
-        deferred: Box<dyn DeferredCircuit<'params, F, R> + 'params>,
+        deferred: Box<dyn Deferrable<'params, F, R> + 'params>,
     ) -> Result<()> {
         if self.num_offset_registered >= OFFSET {
             return Err(Error::Initialization(
@@ -178,17 +217,25 @@ impl<'params, F: PrimeField, R: Rank, const OFFSET: usize> RegistryBuilder<'para
     where
         C: Circuit<F> + 'params,
     {
-        self.push_offset(Box::new(Deferred(circuit)))?;
+        self.push_offset(Box::new(DeferredCircuit(circuit)))?;
         Ok(self)
     }
 
-    /// Registers a pre-built circuit object in the reserved offset slots.
-    #[doc(hidden)]
-    pub fn register_offset_circuit_object(
-        mut self,
-        circuit: Box<dyn CircuitObject<F, R> + 'params>,
-    ) -> Result<Self> {
-        self.push_offset(Box::new(Materialized(circuit)))?;
+    /// Registers a stage mask in the reserved offset slots (mask creation deferred).
+    pub fn register_offset_mask<S>(mut self) -> Result<Self>
+    where
+        S: Stage<F, R> + 'params,
+    {
+        self.push_offset(Box::new(DeferredMask::<S, R>::default()))?;
+        Ok(self)
+    }
+
+    /// Registers a final stage mask in the reserved offset slots (mask creation deferred).
+    pub fn register_offset_final_mask<S>(mut self) -> Result<Self>
+    where
+        S: Stage<F, R> + 'params,
+    {
+        self.push_offset(Box::new(DeferredFinalMask::<S, R>::default()))?;
         Ok(self)
     }
 

@@ -113,7 +113,7 @@
 //! together with the final staging polynomial, producing the desired $r(X)$.
 
 mod builder;
-mod mask;
+pub(crate) mod mask;
 
 use ff::Field;
 use ragu_core::{
