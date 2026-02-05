@@ -55,22 +55,26 @@ impl InternalCircuitIndex {
 
 pub mod stages;
 
-/// Register internal nested circuits into the provided registry.
+/// Register internal nested circuits into the provided registry using offset methods.
+///
+/// Circuits are registered via offset methods to ensure they occupy prefix indices
+/// before application circuits.
 pub(crate) fn register_all<'params, C: Cycle, R: Rank>(
     mut registry: RegistryBuilder<'params, C::ScalarField, R>,
 ) -> Result<RegistryBuilder<'params, C::ScalarField, R>> {
-    registry = registry.register_mask::<EndoscalarStage>()?;
-
-    registry = registry.register_mask::<PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS>>()?;
+    registry = registry.register_offset_mask::<EndoscalarStage>()?;
 
     registry =
-        registry.register_final_mask::<PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS>>()?;
+        registry.register_offset_mask::<PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS>>()?;
+
+    registry = registry
+        .register_offset_final_mask::<PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS>>()?;
 
     let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
     for step in 0..num_steps {
         let step_circuit = EndoscalingStep::<C::HostCurve, R, NUM_ENDOSCALING_POINTS>::new(step);
         let staged = MultiStage::new(step_circuit);
-        registry = registry.register_circuit(staged)?;
+        registry = registry.register_offset_circuit(staged)?;
     }
     Ok(registry)
 }

@@ -40,8 +40,8 @@ pub(crate) enum InternalCircuitIndex {
     ComputeVCircuit = 12,
 }
 
-/// The number of internal circuits registered by [`register_all`] and
-/// [`super::nested::register_all`], and the number of variants in [`InternalCircuitIndex`].
+/// The number of internal circuits registered by [`register_all`],
+/// equal to the number of variants in [`InternalCircuitIndex`].
 pub(crate) const NUM_INTERNAL_CIRCUITS: usize = 13;
 
 /// Compute the total circuit count and log2 domain size from the number of

@@ -17,7 +17,7 @@
 
 use arithmetic::{Domain, PoseidonPermutation, bitreverse};
 use ff::{Field, PrimeField};
-use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
+use ragu_core::{Error, Result, drivers::emulator::Emulator, maybe::Maybe};
 use ragu_primitives::{Element, poseidon::Sponge};
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
@@ -178,26 +178,6 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
         Ok(self)
     }
 
-    /// Registers a stage mask (mask creation deferred until finalization).
-    pub fn register_mask<S>(mut self) -> Result<Self>
-    where
-        S: Stage<F, R> + 'params,
-    {
-        self.circuits
-            .push(Box::new(DeferredMask::<S, R>::default()));
-        Ok(self)
-    }
-
-    /// Registers a final stage mask (mask creation deferred until finalization).
-    pub fn register_final_mask<S>(mut self) -> Result<Self>
-    where
-        S: Stage<F, R> + 'params,
-    {
-        self.circuits
-            .push(Box::new(DeferredFinalMask::<S, R>::default()));
-        Ok(self)
-    }
-
     /// Registers an internal circuit in the offset circuits vector (synthesis deferred).
     pub fn register_offset_circuit<C>(mut self, circuit: C) -> Result<Self>
     where
@@ -242,17 +222,24 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
         self,
         poseidon: &P,
     ) -> Result<Registry<'params, F, R>> {
+        let total_circuits = self.num_circuits();
+        if total_circuits > R::num_coeffs() {
+            return Err(Error::CircuitBoundExceeded(total_circuits));
+        }
+
         let log2_circuits = self.log2_circuits();
         let domain = Domain::<F>::new(log2_circuits);
 
         // Materialize all deferred circuits into circuit objects
-        let circuits: Vec<Box<dyn CircuitObject<F, R> + 'params>> = self
+        let mut circuits = Vec::with_capacity(total_circuits);
+        for deferred in self
             .offset_masks
             .into_iter()
             .chain(self.offset_circuits)
             .chain(self.circuits)
-            .map(|deferred| deferred.materialize())
-            .collect::<Result<_>>()?;
+        {
+            circuits.push(deferred.materialize()?);
+        }
 
         // Build omega^j -> i lookup table
         let mut omega_lookup = BTreeMap::new();
@@ -792,12 +779,10 @@ mod tests {
 
     #[test]
     fn test_registry_with_offset() -> Result<()> {
-        type OffsetRegistryBuilder<'a> = RegistryBuilder<'a, Fp, TestRank>;
-
         let poseidon = Pasta::circuit_poseidon(Pasta::baked());
 
         // Create a builder
-        let builder = OffsetRegistryBuilder::new();
+        let builder = TestRegistryBuilder::new();
 
         // Verify initial state - no circuits registered yet
         assert_eq!(
@@ -843,10 +828,10 @@ mod tests {
     }
 
     #[test]
-    fn test_offset_ordering() -> Result<()> {
+    fn test_offset_mixed_registration() -> Result<()> {
         let poseidon = Pasta::circuit_poseidon(Pasta::baked());
 
-        // Test that offset circuits are placed before application circuits
+        // Test circuit count with sequential registration
         let registry = TestRegistryBuilder::new()
             .register_offset_circuit(SquareCircuit { times: 1 })?
             .register_offset_circuit(SquareCircuit { times: 2 })?
@@ -854,10 +839,9 @@ mod tests {
             .register_circuit(SquareCircuit { times: 4 })?
             .finalize(poseidon)?;
 
-        // Verify circuits appear in correct order: 2 offset circuits, then 2 application circuits
         assert_eq!(registry.circuits().len(), 4);
 
-        // Test with mixed registration order
+        // Test circuit count with interleaved registration
         let registry2 = TestRegistryBuilder::new()
             .register_circuit(SquareCircuit { times: 3 })?
             .register_offset_circuit(SquareCircuit { times: 1 })?
@@ -865,7 +849,6 @@ mod tests {
             .register_offset_circuit(SquareCircuit { times: 2 })?
             .finalize(poseidon)?;
 
-        // Should still have 4 circuits, with offset circuits placed first during finalization
         assert_eq!(registry2.circuits().len(), 4);
 
         Ok(())

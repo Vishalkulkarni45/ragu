@@ -119,7 +119,7 @@ fn test_index_map() -> Result<()> {
     let num_application_steps = 10;
     let app_offset = NUM_INTERNAL_STEPS + NUM_INTERNAL_CIRCUITS;
 
-    // Internal steps come after internal circuits (masks at 0-7, circuits at 8-12, steps at 13-14)
+    // Internal steps come after internal circuits
     assert_eq!(
         Index::internal(InternalStepIndex::Rerandomize).circuit_index(num_application_steps)?,
         CircuitIndex::new(NUM_INTERNAL_CIRCUITS)
