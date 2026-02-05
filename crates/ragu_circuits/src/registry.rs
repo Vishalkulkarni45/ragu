@@ -22,63 +22,11 @@ use ragu_primitives::{Element, poseidon::Sponge};
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 
-use core::marker::PhantomData;
-
 use crate::{
     Circuit, CircuitExt, CircuitObject,
     polynomials::{Rank, structured, unstructured},
     staging::{Stage, StageExt, mask::StageMask},
 };
-
-/// Trait for types that defer materialization until [`RegistryBuilder::finalize`].
-trait Deferrable<'a, F: Field, R: Rank>: Send + Sync {
-    /// Converts to a [`CircuitObject`], synthesizing if needed.
-    fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>>;
-}
-
-/// A deferred circuit that calls [`CircuitExt::into_object`] on materialization.
-struct DeferredCircuit<C>(C);
-
-impl<'a, F: Field, R: Rank, C: Circuit<F> + 'a> Deferrable<'a, F, R> for DeferredCircuit<C> {
-    fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>> {
-        self.0.into_object()
-    }
-}
-
-/// A deferred mask wrapper that creates a [`StageMask`] on materialization.
-struct DeferredMask<S, R>(PhantomData<fn() -> (S, R)>);
-
-impl<S, R> Default for DeferredMask<S, R> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<'a, F: Field, R: Rank, S: Stage<F, R> + 'a> Deferrable<'a, F, R> for DeferredMask<S, R> {
-    fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>> {
-        Ok(Box::new(StageMask::new(
-            S::skip_multiplications(),
-            S::num_multiplications(),
-        )?))
-    }
-}
-
-/// A deferred final mask that creates a [`StageMask`] via `new_final` on materialization.
-struct DeferredFinalMask<S, R>(PhantomData<fn() -> (S, R)>);
-
-impl<S, R> Default for DeferredFinalMask<S, R> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<'a, F: Field, R: Rank, S: Stage<F, R> + 'a> Deferrable<'a, F, R> for DeferredFinalMask<S, R> {
-    fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>> {
-        Ok(Box::new(StageMask::new_final(
-            S::skip_multiplications() + S::num_multiplications(),
-        )?))
-    }
-}
 
 /// Represents a simple numeric index of a circuit in the registry.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -120,9 +68,6 @@ impl CircuitIndex {
 
 /// A builder that constructs a [`Registry`].
 ///
-/// Circuits are stored in deferred form until [`finalize`](Self::finalize),
-/// avoiding synthesis overhead during registration.
-///
 /// Circuits are organized into three categories:
 /// - Internal masks: stage masks and final masks for internal stages
 /// - Internal circuits: system circuits and internal steps
@@ -132,9 +77,9 @@ impl CircuitIndex {
 /// ensuring internal masks can be optimized separately from circuits
 /// while maintaining proper PCD indexing.
 pub struct RegistryBuilder<'params, F: PrimeField, R: Rank> {
-    internal_masks: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
-    internal_circuits: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
-    application_steps: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
+    internal_masks: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
+    internal_circuits: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
+    application_steps: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
 }
 
 impl<F: PrimeField, R: Rank> Default for RegistryBuilder<'_, F, R> {
@@ -173,43 +118,43 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
     where
         C: Circuit<F> + 'params,
     {
-        self.application_steps
-            .push(Box::new(DeferredCircuit(circuit)));
-
+        self.application_steps.push(circuit.into_object()?);
         Ok(self)
     }
 
-    /// Registers an internal circuit with deferred synthesis.
+    /// Registers an internal circuit.
     pub fn register_internal_circuit<C>(mut self, circuit: C) -> Result<Self>
     where
         C: Circuit<F> + 'params,
     {
-        self.internal_circuits
-            .push(Box::new(DeferredCircuit(circuit)));
+        self.internal_circuits.push(circuit.into_object()?);
         Ok(self)
     }
 
-    /// Registers an internal stage mask with deferred creation.
+    /// Registers an internal stage mask.
     pub fn register_internal_mask<S>(mut self) -> Result<Self>
     where
         S: Stage<F, R> + 'params,
     {
-        self.internal_masks
-            .push(Box::new(DeferredMask::<S, R>::default()));
+        self.internal_masks.push(Box::new(StageMask::new(
+            S::skip_multiplications(),
+            S::num_multiplications(),
+        )?));
         Ok(self)
     }
 
-    /// Registers an internal final stage mask with deferred creation.
+    /// Registers an internal final stage mask.
     pub fn register_internal_final_mask<S>(mut self) -> Result<Self>
     where
         S: Stage<F, R> + 'params,
     {
-        self.internal_masks
-            .push(Box::new(DeferredFinalMask::<S, R>::default()));
+        self.internal_masks.push(Box::new(StageMask::new_final(
+            S::skip_multiplications() + S::num_multiplications(),
+        )?));
         Ok(self)
     }
 
-    /// Materializes all deferred circuits and builds the [`Registry`].
+    /// Builds the [`Registry`].
     ///
     /// Circuits are concatenated in the following order for proper indexing:
     /// 1. Internal masks: Stage enforcement masks and final masks
@@ -231,16 +176,12 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
         let log2_circuits = self.log2_circuits();
         let domain = Domain::<F>::new(log2_circuits);
 
-        // Materialize all deferred circuits into circuit objects.
-        let mut circuits = Vec::with_capacity(total_circuits);
-        for deferred in self
+        let circuits: Vec<_> = self
             .internal_masks
             .into_iter()
             .chain(self.internal_circuits)
             .chain(self.application_steps)
-        {
-            circuits.push(deferred.materialize()?);
-        }
+            .collect();
 
         // Build omega^j -> i lookup table.
         let mut omega_lookup = BTreeMap::new();
