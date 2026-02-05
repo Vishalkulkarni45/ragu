@@ -32,11 +32,11 @@ use crate::{
 
 /// Trait for types that defer materialization until [`RegistryBuilder::finalize`].
 trait Deferrable<'a, F: Field, R: Rank>: Send + Sync {
-    /// Convert to a [`CircuitObject`], synthesizing if needed.
+    /// Converts to a [`CircuitObject`], synthesizing if needed.
     fn materialize(self: Box<Self>) -> Result<Box<dyn CircuitObject<F, R> + 'a>>;
 }
 
-/// Deferred circuit; calls [`CircuitExt::into_object`] on materialize.
+/// A deferred circuit that calls [`CircuitExt::into_object`] on materialization.
 struct DeferredCircuit<C>(C);
 
 impl<'a, F: Field, R: Rank, C: Circuit<F> + 'a> Deferrable<'a, F, R> for DeferredCircuit<C> {
@@ -45,7 +45,7 @@ impl<'a, F: Field, R: Rank, C: Circuit<F> + 'a> Deferrable<'a, F, R> for Deferre
     }
 }
 
-/// Deferred mask wrapper; creates [`StageMask`] on materialize.
+/// A deferred mask wrapper that creates a [`StageMask`] on materialization.
 struct DeferredMask<S, R>(PhantomData<fn() -> (S, R)>);
 
 impl<S, R> Default for DeferredMask<S, R> {
@@ -124,17 +124,17 @@ impl CircuitIndex {
 /// avoiding synthesis overhead during registration.
 ///
 /// Circuits are organized into three categories:
-/// - `offset_masks`: Stage masks and final masks registered via offset methods
-/// - `offset_circuits`: Internal circuits and steps registered via offset methods
-/// - `circuits`: Application circuits and masks
+/// - Internal masks: Stage masks and final masks for internal stages
+/// - Internal circuits: System circuits and internal steps
+/// - Application steps: User-defined application step circuits
 ///
-/// During finalization, circuits are concatenated in the order:
-/// `offset_masks -> offset_circuits -> circuits`, ensuring internal masks can be
-/// optimized separately from circuits while maintaining proper PCD indexing.
+/// During finalization, circuits are concatenated in registration order,
+/// ensuring internal masks can be optimized separately from circuits while
+/// maintaining proper PCD indexing.
 pub struct RegistryBuilder<'params, F: PrimeField, R: Rank> {
-    offset_masks: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
-    offset_circuits: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
-    circuits: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
+    internal_masks: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
+    internal_circuits: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
+    application_steps: Vec<Box<dyn Deferrable<'params, F, R> + 'params>>,
 }
 
 impl<F: PrimeField, R: Rank> Default for RegistryBuilder<'_, F, R> {
@@ -147,15 +147,15 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
     /// Creates a new [`Registry`] builder with empty circuit vectors.
     pub fn new() -> Self {
         Self {
-            offset_masks: Vec::new(),
-            offset_circuits: Vec::new(),
-            circuits: Vec::new(),
+            internal_masks: Vec::new(),
+            internal_circuits: Vec::new(),
+            application_steps: Vec::new(),
         }
     }
 
     /// Returns the total number of circuits across all categories.
     pub fn num_circuits(&self) -> usize {
-        self.offset_masks.len() + self.offset_circuits.len() + self.circuits.len()
+        self.internal_masks.len() + self.internal_circuits.len() + self.application_steps.len()
     }
 
     /// Returns the log2 of the smallest power-of-2 domain size that fits all circuits.
@@ -163,47 +163,48 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
         self.num_circuits().next_power_of_two().trailing_zeros()
     }
 
-    /// Returns the number of offset circuits (masks + circuits).
-    pub fn num_offset_circuits(&self) -> usize {
-        self.offset_masks.len() + self.offset_circuits.len()
+    /// Returns the number of internal circuits (masks + circuits).
+    pub fn num_internal_circuits(&self) -> usize {
+        self.internal_masks.len() + self.internal_circuits.len()
     }
 
-    /// Registers a new circuit.
+    /// Registers a new application step circuit.
     pub fn register_circuit<C>(mut self, circuit: C) -> Result<Self>
     where
         C: Circuit<F> + 'params,
     {
-        self.circuits.push(Box::new(DeferredCircuit(circuit)));
+        self.application_steps
+            .push(Box::new(DeferredCircuit(circuit)));
 
         Ok(self)
     }
 
-    /// Registers an internal circuit in the offset circuits vector (synthesis deferred).
-    pub fn register_offset_circuit<C>(mut self, circuit: C) -> Result<Self>
+    /// Registers an internal circuit (synthesis deferred).
+    pub fn register_internal_circuit<C>(mut self, circuit: C) -> Result<Self>
     where
         C: Circuit<F> + 'params,
     {
-        self.offset_circuits
+        self.internal_circuits
             .push(Box::new(DeferredCircuit(circuit)));
         Ok(self)
     }
 
-    /// Registers a stage mask in the offset masks vector (mask creation deferred).
-    pub fn register_offset_mask<S>(mut self) -> Result<Self>
+    /// Registers an internal stage mask (mask creation deferred).
+    pub fn register_internal_mask<S>(mut self) -> Result<Self>
     where
         S: Stage<F, R> + 'params,
     {
-        self.offset_masks
+        self.internal_masks
             .push(Box::new(DeferredMask::<S, R>::default()));
         Ok(self)
     }
 
-    /// Registers a final stage mask in the offset masks vector (mask creation deferred).
-    pub fn register_offset_final_mask<S>(mut self) -> Result<Self>
+    /// Registers an internal final stage mask (mask creation deferred).
+    pub fn register_internal_final_mask<S>(mut self) -> Result<Self>
     where
         S: Stage<F, R> + 'params,
     {
-        self.offset_masks
+        self.internal_masks
             .push(Box::new(DeferredFinalMask::<S, R>::default()));
         Ok(self)
     }
@@ -211,13 +212,13 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
     /// Materializes all deferred circuits and builds the [`Registry`].
     ///
     /// Circuits are concatenated in the following order for proper indexing:
-    /// 1. `offset_masks` - internal stage enforcement masks
-    /// 2. `offset_circuits` - internal system circuits and steps
-    /// 3. `circuits` - application circuits and masks
+    /// 1. Internal masks: Stage enforcement masks and final masks
+    /// 2. Internal circuits: System circuits and internal steps
+    /// 3. Application steps: User-defined step circuits
     ///
     /// This ordering ensures internal masks can be optimized separately while
     /// maintaining proper PCD indexing where internal items occupy indices 0..N
-    /// and application circuits occupy indices N..
+    /// and application steps occupy indices N.
     pub fn finalize<P: PoseidonPermutation<F>>(
         self,
         poseidon: &P,
@@ -230,18 +231,18 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
         let log2_circuits = self.log2_circuits();
         let domain = Domain::<F>::new(log2_circuits);
 
-        // Materialize all deferred circuits into circuit objects
+        // Materialize all deferred circuits into circuit objects.
         let mut circuits = Vec::with_capacity(total_circuits);
         for deferred in self
-            .offset_masks
+            .internal_masks
             .into_iter()
-            .chain(self.offset_circuits)
-            .chain(self.circuits)
+            .chain(self.internal_circuits)
+            .chain(self.application_steps)
         {
             circuits.push(deferred.materialize()?);
         }
 
-        // Build omega^j -> i lookup table
+        // Build omega^j -> i lookup table.
         let mut omega_lookup = BTreeMap::new();
 
         for i in 0..circuits.len() {
@@ -778,7 +779,7 @@ mod tests {
     }
 
     #[test]
-    fn test_registry_with_offset() -> Result<()> {
+    fn test_registry_with_internal_circuits() -> Result<()> {
         let poseidon = Pasta::circuit_poseidon(Pasta::baked());
 
         // Create a builder
@@ -791,33 +792,37 @@ mod tests {
             "should start with 0 registered circuits"
         );
         assert_eq!(
-            builder.num_offset_circuits(),
+            builder.num_internal_circuits(),
             0,
-            "no offset circuits registered yet"
+            "no internal circuits registered yet"
         );
 
-        // Register 2 circuits in the offset buffer
+        // Register 2 internal circuits
         let builder = builder
-            .register_offset_circuit(SquareCircuit { times: 2 })?
-            .register_offset_circuit(SquareCircuit { times: 3 })?;
+            .register_internal_circuit(SquareCircuit { times: 2 })?
+            .register_internal_circuit(SquareCircuit { times: 3 })?;
 
         assert_eq!(
-            builder.num_offset_circuits(),
+            builder.num_internal_circuits(),
             2,
-            "2 offset circuits registered"
+            "2 internal circuits registered"
         );
         assert_eq!(builder.num_circuits(), 2, "2 total registered circuits");
 
-        // Register 2 application circuits
+        // Register 2 application steps
         let builder = builder
             .register_circuit(SquareCircuit { times: 4 })?
             .register_circuit(SquareCircuit { times: 5 })?;
 
-        assert_eq!(builder.num_offset_circuits(), 2, "still 2 offset circuits");
+        assert_eq!(
+            builder.num_internal_circuits(),
+            2,
+            "still 2 internal circuits"
+        );
         assert_eq!(
             builder.num_circuits(),
             4,
-            "now 4 total registered circuits (2 offset + 2 application)"
+            "now 4 total registered circuits (2 internal + 2 application)"
         );
 
         // Finalize the registry
@@ -828,13 +833,13 @@ mod tests {
     }
 
     #[test]
-    fn test_offset_mixed_registration() -> Result<()> {
+    fn test_internal_mixed_registration() -> Result<()> {
         let poseidon = Pasta::circuit_poseidon(Pasta::baked());
 
         // Test circuit count with sequential registration
         let registry = TestRegistryBuilder::new()
-            .register_offset_circuit(SquareCircuit { times: 1 })?
-            .register_offset_circuit(SquareCircuit { times: 2 })?
+            .register_internal_circuit(SquareCircuit { times: 1 })?
+            .register_internal_circuit(SquareCircuit { times: 2 })?
             .register_circuit(SquareCircuit { times: 3 })?
             .register_circuit(SquareCircuit { times: 4 })?
             .finalize(poseidon)?;
@@ -844,9 +849,9 @@ mod tests {
         // Test circuit count with interleaved registration
         let registry2 = TestRegistryBuilder::new()
             .register_circuit(SquareCircuit { times: 3 })?
-            .register_offset_circuit(SquareCircuit { times: 1 })?
+            .register_internal_circuit(SquareCircuit { times: 1 })?
             .register_circuit(SquareCircuit { times: 4 })?
-            .register_offset_circuit(SquareCircuit { times: 2 })?
+            .register_internal_circuit(SquareCircuit { times: 2 })?
             .finalize(poseidon)?;
 
         assert_eq!(registry2.circuits().len(), 4);

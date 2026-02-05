@@ -123,15 +123,15 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
 
         // Then, register internal steps
         self.native_registry =
-            self.native_registry
-                .register_offset_circuit(Adapter::<C, _, R, HEADER_SIZE>::new(
+            self.native_registry.register_internal_circuit(
+                Adapter::<C, _, R, HEADER_SIZE>::new(
                     step::internal::rerandomize::Rerandomize::<()>::new(),
-                ))?;
+                ),
+            )?;
         self.native_registry =
-            self.native_registry
-                .register_offset_circuit(Adapter::<C, _, R, HEADER_SIZE>::new(
-                    step::internal::trivial::Trivial::new(),
-                ))?;
+            self.native_registry.register_internal_circuit(
+                Adapter::<C, _, R, HEADER_SIZE>::new(step::internal::trivial::Trivial::new()),
+            )?;
 
         assert_eq!(
             self.native_registry.log2_circuits(),
