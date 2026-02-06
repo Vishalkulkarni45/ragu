@@ -7,7 +7,7 @@
 //!
 //! ### Revdot folding
 //! - Retrieve layer 1 challenges [$\mu$], [$\nu$] and layer 2 challenges [$\mu'$], [$\nu'$]
-//! - Compute $a(x)$ and $b(x)$ via two-layer revdot folding of evaluation claims
+//! - Compute $a(xz)$ and $b(x)$ via two-layer revdot folding of evaluation claims
 //!
 //! ### $f(u)$ computation
 //! - Compute inverse denominators $(u - x_i)^{-1}$ for all evaluation points
@@ -178,7 +178,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> MultiStageCircuit<C::CircuitFi
         // unified instance. This binds the prover's polynomial commitments to
         // the claimed evaluation.
         {
-            // Step 1: Compute a(x) and b(x) via two-layer revdot folding.
+            // Step 1: Compute a(xz) and b(x) via two-layer revdot folding.
             // These aggregate all evaluation claims into a single pair.
             let (computed_ax, computed_bx) = {
                 let mu = unified_output.mu.get(dr, unified_instance)?;
@@ -405,14 +405,14 @@ impl<'a, 'dr, D: Driver<'dr>> Source for EvaluationSource<'a, 'dr, D> {
         let (left, right) = match component {
             // Raw claims: a uses xz evaluation, b uses x evaluation
             AbA => (
-                RxEval::OnlyXz(&self.left.a_poly_at_xz),
-                RxEval::OnlyXz(&self.right.a_poly_at_xz),
+                RxEval::Xz(&self.left.a_poly_at_xz),
+                RxEval::Xz(&self.right.a_poly_at_xz),
             ),
             AbB => (
                 RxEval::X(&self.left.b_poly_at_x),
                 RxEval::X(&self.right.b_poly_at_x),
             ),
-            // Circuit claims: both x and xz evaluations available
+            // Circuit/stage claims: use xz evaluation
             Application => (
                 self.left.application.to_eval(),
                 self.right.application.to_eval(),
@@ -452,7 +452,7 @@ impl<'a, 'dr, D: Driver<'dr>> Source for EvaluationSource<'a, 'dr, D> {
 /// Processor that builds evaluation vectors for two-layer revdot folding.
 ///
 /// Collects evaluations into `ax` and `bx` vectors that will be folded to
-/// produce $a(x)$ and $b(x)$. Each claim type (raw, circuit, internal circuit,
+/// produce $a(xz)$ and $b(x)$. Each claim type (raw, circuit, internal circuit,
 /// stage) has different formulas for computing its contribution to the vectors.
 struct EvaluationProcessor<'a, 'dr, D: Driver<'dr>> {
     dr: &'a mut D,
@@ -538,7 +538,7 @@ impl<'a, 'dr, D: Driver<'dr>> Processor<RxEval<'a, 'dr, D>, &'a Element<'dr, D>>
     }
 }
 
-/// Computes the expected value of $a(x), b(x)$ given the evaluations at $x$ of
+/// Computes the expected value of $a(xz), b(x)$ given the evaluations at $xz$ of
 /// every constituent polynomial at $x, xz$.
 ///
 /// This function is the authoritative source of the protocol's (recursive)
@@ -547,7 +547,7 @@ impl<'a, 'dr, D: Driver<'dr>> Processor<RxEval<'a, 'dr, D>, &'a Element<'dr, D>>
 /// of their folded revdot claim.
 ///
 /// The two-layer folding uses:
-/// - Layer 1: $\mu^{-1}$, $\mu'^{-1}$ for $a(x)$; $\mu\nu$, $\mu'\nu'$ for $b(x)$
+/// - Layer 1: $\mu^{-1}$, $\mu'^{-1}$ for $a(xz)$; $\mu\nu$, $\mu'\nu'$ for $b(x)$
 /// - Layer 2: Internal folding within each layer
 fn compute_axbx<'dr, D: Driver<'dr>, P: Parameters>(
     dr: &mut D,
@@ -588,8 +588,8 @@ fn compute_axbx<'dr, D: Driver<'dr>, P: Parameters>(
 /// 2. **Registry polynomial transitions** - $m(W,x,y) \to m(w,x,Y) \to m(w,X,y) \to s(W,x,y)$
 /// 3. **Internal circuit registry evaluations** - $m(\omega^j, x, y)$ for each internal index
 /// 4. **Application circuit registry evaluations** - $m(\text{circuit\_id}, x, y)$
-/// 5. **$a(x), b(x)$ polynomial queries** - Including verifier-computed values
-/// 6. **Stage/circuit evaluations** - At both $x$ and $xz$ points
+/// 5. **$a(xz), b(x)$ polynomial queries** - Including verifier-computed values
+/// 6. **Stage/circuit evaluations** - At $xz$ point only
 ///
 /// The queries must be ordered exactly as in the prover's computation of $f(X)$
 /// in [`compute_f`], since the ordering affects the weight

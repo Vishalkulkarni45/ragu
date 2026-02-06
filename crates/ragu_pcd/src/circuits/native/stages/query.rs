@@ -63,25 +63,23 @@ impl<'dr, D: Driver<'dr>> XzQuery<'dr, D> {
     }
 }
 
-/// Evaluation(s) of an rx polynomial at x and optionally xz.
-///
-/// For circuit claims, both x and xz evaluations are available. For raw a/b
-/// claims, only one evaluation is available (xz for a, x for b).
+/// Evaluation of an rx polynomial at x or xz.                                                                                                                                                                                                     
+///                                                                                                                                                                                                                                                
+/// For raw a/b claims, only one evaluation is used (xz for a, x for b).                                                                                                                                                                           
+/// For circuit/stage claims, we use the xz evaluation.  
 pub enum RxEval<'a, 'dr, D: Driver<'dr>> {
-    /// Only the x evaluation is available (used for raw b queries).
+    /// The x evaluation (used for raw b queries).
     X(&'a Element<'dr, D>),
-    /// Only the xz evaluation is available (used for raw a queries).
-    OnlyXz(&'a Element<'dr, D>),
-    /// Both x and xz evaluations are available.
-    Xz(&'a Element<'dr, D>, &'a Element<'dr, D>),
+    /// The xz evaluation (used for raw a queries and circuit/stage claims).
+    Xz(&'a Element<'dr, D>),
 }
 
 impl<'a, 'dr, D: Driver<'dr>> RxEval<'a, 'dr, D> {
     /// Returns the evaluation at x.
     pub fn x(&self) -> &'a Element<'dr, D> {
         match self {
-            Self::X(x) | Self::Xz(x, _) => x,
-            Self::OnlyXz(_) => panic!("x evaluation not available for xz-only RxEval"),
+            Self::X(x) => x,
+            Self::Xz(_) => panic!("x evaluation not available for xz-only RxEval"),
         }
     }
 
@@ -89,15 +87,15 @@ impl<'a, 'dr, D: Driver<'dr>> RxEval<'a, 'dr, D> {
     pub fn xz(&self) -> &'a Element<'dr, D> {
         match self {
             Self::X(_) => panic!("xz evaluation not available for x-only RxEval"),
-            Self::OnlyXz(xz) | Self::Xz(_, xz) => xz,
+            Self::Xz(xz) => xz,
         }
     }
 }
 
 impl<'dr, D: Driver<'dr>> XzQuery<'dr, D> {
-    /// Convert to an RxEval with both x and xz evaluations.
+    /// Convert to an RxEval with the xz evaluation.
     pub fn to_eval(&self) -> RxEval<'_, 'dr, D> {
-        RxEval::Xz(&self.at_x, &self.at_xz)
+        RxEval::Xz(&self.at_xz)
     }
 }
 
