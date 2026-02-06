@@ -414,28 +414,43 @@ impl<'a, 'dr, D: Driver<'dr>> Source for EvaluationSource<'a, 'dr, D> {
             ),
             // Circuit/stage claims: use xz evaluation
             Application => (
-                self.left.application.to_eval(),
-                self.right.application.to_eval(),
+                RxEval::Xz(&self.left.application),
+                RxEval::Xz(&self.right.application),
             ),
-            Hashes1 => (self.left.hashes_1.to_eval(), self.right.hashes_1.to_eval()),
-            Hashes2 => (self.left.hashes_2.to_eval(), self.right.hashes_2.to_eval()),
+            Hashes1 => (
+                RxEval::Xz(&self.left.hashes_1),
+                RxEval::Xz(&self.right.hashes_1),
+            ),
+            Hashes2 => (
+                RxEval::Xz(&self.left.hashes_2),
+                RxEval::Xz(&self.right.hashes_2),
+            ),
             PartialCollapse => (
-                self.left.partial_collapse.to_eval(),
-                self.right.partial_collapse.to_eval(),
+                RxEval::Xz(&self.left.partial_collapse),
+                RxEval::Xz(&self.right.partial_collapse),
             ),
             FullCollapse => (
-                self.left.full_collapse.to_eval(),
-                self.right.full_collapse.to_eval(),
+                RxEval::Xz(&self.left.full_collapse),
+                RxEval::Xz(&self.right.full_collapse),
             ),
             ComputeV => (
-                self.left.compute_v.to_eval(),
-                self.right.compute_v.to_eval(),
+                RxEval::Xz(&self.left.compute_v),
+                RxEval::Xz(&self.right.compute_v),
             ),
-            Preamble => (self.left.preamble.to_eval(), self.right.preamble.to_eval()),
-            ErrorM => (self.left.error_m.to_eval(), self.right.error_m.to_eval()),
-            ErrorN => (self.left.error_n.to_eval(), self.right.error_n.to_eval()),
-            Query => (self.left.query.to_eval(), self.right.query.to_eval()),
-            Eval => (self.left.eval.to_eval(), self.right.eval.to_eval()),
+            Preamble => (
+                RxEval::Xz(&self.left.preamble),
+                RxEval::Xz(&self.right.preamble),
+            ),
+            ErrorM => (
+                RxEval::Xz(&self.left.error_m),
+                RxEval::Xz(&self.right.error_m),
+            ),
+            ErrorN => (
+                RxEval::Xz(&self.left.error_n),
+                RxEval::Xz(&self.right.error_n),
+            ),
+            Query => (RxEval::Xz(&self.left.query), RxEval::Xz(&self.right.query)),
+            Eval => (RxEval::Xz(&self.left.eval), RxEval::Xz(&self.right.eval)),
         };
         [left, right].into_iter()
     }
@@ -671,7 +686,7 @@ fn poly_queries<'a, 'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>, const HE
             (&eval.partial_collapse, &query.partial_collapse),
             (&eval.full_collapse,    &query.full_collapse),
             (&eval.compute_v,        &query.compute_v),
-        ].into_iter().map(|(e, q)| (e, &q.at_xz, &d.challenges.xz))))
+        ].into_iter().map(|(e, q)| (e, q, &d.challenges.xz))))
 }
 
 /// Batch inverter for computing denominators.
