@@ -331,7 +331,6 @@ pub fn poly_with_roots<F: PrimeField>(roots: &[F]) -> Vec<F> {
 #[cfg(test)]
 mod poly_with_roots_tests {
     use super::*;
-    use alloc::format;
     use ff::Field;
     use pasta_curves::Fp as F;
     use proptest::prelude::*;

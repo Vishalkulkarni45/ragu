@@ -230,7 +230,7 @@ mod tests {
     };
     use ragu_pasta::{EpAffine, Fp, Fq};
     use ragu_primitives::{Element, Endoscalar, Point, io::Write};
-    use rand::{Rng, thread_rng};
+    use rand::Rng;
 
     use crate::{
         CircuitExt, CircuitObject, metrics, polynomials::Rank, registry, s::sy,
@@ -348,10 +348,10 @@ mod tests {
             }
         }
 
-        let endoscalar_a: Uendo = thread_rng().r#gen();
-        let endoscalar_b: Uendo = thread_rng().r#gen();
-        let p1 = (EpAffine::generator() * Fq::random(thread_rng())).into();
-        let p2 = (EpAffine::generator() * Fq::random(thread_rng())).into();
+        let endoscalar_a: Uendo = rand::rng().random();
+        let endoscalar_b: Uendo = rand::rng().random();
+        let p1 = (EpAffine::generator() * Fq::random(&mut rand::rng())).into();
+        let p2 = (EpAffine::generator() * Fq::random(&mut rand::rng())).into();
 
         let rx1_a = MyStage1::rx(endoscalar_a)?;
         let rx1_b = MyStage1::rx(endoscalar_b)?;
@@ -360,9 +360,9 @@ mod tests {
         let circ1 = MyStage1::mask()?;
         let circ2 = MyStage2::mask()?;
 
-        let z = Fp::random(thread_rng());
-        let y = Fp::random(thread_rng());
-        let k = registry::Key::new(Fp::random(thread_rng()));
+        let z = Fp::random(&mut rand::rng());
+        let y = Fp::random(&mut rand::rng());
+        let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
         {
             let rhs = circ1.sy(y, &k);
@@ -391,9 +391,9 @@ mod tests {
     fn test_skip_multiplications_zero() {
         let stage_mask = StageMask::<R>::new(0, 5).unwrap();
 
-        let x = Fp::random(thread_rng());
-        let y = Fp::random(thread_rng());
-        let k = registry::Key::new(Fp::random(thread_rng()));
+        let x = Fp::random(&mut rand::rng());
+        let y = Fp::random(&mut rand::rng());
+        let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
         let sxy = stage_mask.sxy(x, y, &k);
         let sx = stage_mask.sx(x, &k);
@@ -407,9 +407,9 @@ mod tests {
     fn test_stage_mask_all_multiplications() {
         // Edge case: skip = 0, num = R::n() - 1, reserved = 0.
         let stage = StageMask::<R>::new(0, R::n() - 1).unwrap();
-        let x = Fp::random(thread_rng());
-        let y = Fp::random(thread_rng());
-        let k = registry::Key::new(Fp::random(thread_rng()));
+        let x = Fp::random(&mut rand::rng());
+        let y = Fp::random(&mut rand::rng());
+        let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
         let comparison_mask = stage.clone().into_object::<R>().unwrap();
 
@@ -422,8 +422,8 @@ mod tests {
     #[test]
     fn test_minimum_linear_constraints() {
         let circuit = SquareCircuit { times: 2 };
-        let y = Fp::random(thread_rng());
-        let k = registry::Key::new(Fp::random(thread_rng()));
+        let y = Fp::random(&mut rand::rng());
+        let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
         let metrics = metrics::eval(&circuit).expect("metrics should succeed");
         let mut sy = sy::eval::<_, _, R>(&circuit, y, &k, metrics.num_linear_constraints)
@@ -455,9 +455,9 @@ mod tests {
         // When reserved = 0, all gates except one are used.
         let stage = StageMask::<R>::new(0, R::n() - 1).expect("skip multiplications");
 
-        let x = Fp::random(thread_rng());
-        let y = Fp::random(thread_rng());
-        let k = registry::Key::new(Fp::random(thread_rng()));
+        let x = Fp::random(&mut rand::rng());
+        let y = Fp::random(&mut rand::rng());
+        let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
         let sxy = stage.sxy(x, y, &k);
         let sx = stage.sx(x, &k);
@@ -492,7 +492,7 @@ mod tests {
             let stage_mask = StageMask::<R>::new(skip, num).unwrap();
             let comparison_mask = stage_mask.clone().into_object::<R>().unwrap();
 
-            let k = registry::Key::new(Fp::random(thread_rng()));
+            let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
             let check = |x: Fp, y: Fp| {
                 let xn_minus_1 = x.pow_vartime([(4 * R::n() - 1) as u64]);
@@ -519,8 +519,8 @@ mod tests {
                 Ok(())
             };
 
-            let x = Fp::random(thread_rng());
-            let y = Fp::random(thread_rng());
+            let x = Fp::random(&mut rand::rng());
+            let y = Fp::random(&mut rand::rng());
             check(x, y)?;
             check(Fp::ZERO, y)?;
             check(x, Fp::ZERO)?;
@@ -592,7 +592,7 @@ mod tests {
         let stage_mask = ConstrainedStage::mask::<'_>().unwrap();
 
         // rx.revdot(&stage_mask) == 0 for well-formed stages
-        let y = Fp::random(thread_rng());
+        let y = Fp::random(&mut rand::rng());
         let k = registry::Key::new(Fp::ONE);
         let sy = stage_mask.sy(y, &k);
 

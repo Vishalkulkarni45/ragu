@@ -9,7 +9,6 @@ use ragu_core::{
 };
 use ragu_pasta::Fp;
 use ragu_primitives::Element;
-use rand::thread_rng;
 
 use crate::{
     Circuit, CircuitExt, CircuitObject,
@@ -59,9 +58,9 @@ impl Circuit<Fp> for SquareCircuit {
 }
 
 fn consistency_checks<R: Rank>(circuit: &dyn CircuitObject<Fp, R>) {
-    let x = Fp::random(thread_rng());
-    let y = Fp::random(thread_rng());
-    let k = registry::Key::new(Fp::random(thread_rng()));
+    let x = Fp::random(&mut rand::rng());
+    let y = Fp::random(&mut rand::rng());
+    let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
     let sxy_eval = circuit.sxy(x, y, &k);
     let s0y_eval = circuit.sxy(Fp::ZERO, y, &k);
@@ -158,8 +157,8 @@ fn test_simple_circuit() {
 
     consistency_checks(&*circuit);
 
-    let y = Fp::random(thread_rng());
-    let z = Fp::random(thread_rng());
+    let y = Fp::random(&mut rand::rng());
+    let z = Fp::random(&mut rand::rng());
     let k = registry::Key::default();
 
     let a = assignment.clone();

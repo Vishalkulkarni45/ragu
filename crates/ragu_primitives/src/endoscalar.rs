@@ -257,7 +257,7 @@ mod tests {
     use group::{Group, prime::PrimeCurveAffine};
     use ragu_core::Result;
     use ragu_pasta::{EpAffine, Fp};
-    use rand::{Rng, thread_rng};
+    use rand::Rng;
 
     use crate::Simulator;
 
@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn test_extract() -> Result<()> {
         let p = EpAffine::generator();
-        let r = Fp::random(thread_rng());
+        let r = Fp::random(&mut rand::rng());
         let extracted = extract_endoscalar(r).value;
 
         Simulator::<Fp>::simulate((r, extracted, p), |dr, witness| {
@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn test_endoscaling() -> Result<()> {
         let p = EpAffine::generator();
-        let r: Uendo = thread_rng().r#gen();
+        let r: Uendo = rand::rng().random();
         let expected = EndoscalarTest { value: r }.scale(&p);
 
         Simulator::simulate((p, r), |dr, witness| {
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_endopacking() -> Result<()> {
-        let r: Uendo = thread_rng().r#gen();
+        let r: Uendo = rand::rng().random();
         let expected: Fp = EndoscalarTest { value: r }.compute_scalar();
 
         Simulator::<Fp>::simulate(r, |dr, witness| {

@@ -64,7 +64,7 @@ pub fn alloc_point(emu: &mut BenchEmu, rng: &mut StdRng) -> Point<'static, Bench
 }
 
 pub fn alloc_endo(emu: &mut BenchEmu, rng: &mut StdRng) -> Endoscalar<'static, BenchEmu> {
-    let u: Uendo = rng.r#gen();
+    let u: Uendo = rng.random();
     Endoscalar::alloc(emu, BenchEmu::just(|| u)).unwrap()
 }
 
@@ -94,7 +94,7 @@ pub fn alloc_bools<const N: usize>(
 ) -> Vec<Boolean<'static, BenchEmu>> {
     (0..N)
         .map(|_| {
-            let v: bool = rng.r#gen();
+            let v: bool = rng.random();
             Boolean::alloc(emu, BenchEmu::just(|| v)).unwrap()
         })
         .collect()

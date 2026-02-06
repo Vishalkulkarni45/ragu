@@ -145,15 +145,14 @@ mod tests {
     use crate::polynomials::R;
     use ragu_pasta::Fp;
     use ragu_primitives::Simulator;
-    use rand::thread_rng;
 
     #[test]
     fn simulate_txz() -> Result<()> {
         // R<13> has log2_n = 11
         type TestRank = R<13>;
 
-        let x = Fp::random(thread_rng());
-        let z = Fp::random(thread_rng());
+        let x = Fp::random(&mut rand::rng());
+        let z = Fp::random(&mut rand::rng());
         let evaluator = Evaluate::<TestRank>::new();
 
         Simulator::simulate((x, z), |dr, witness| {

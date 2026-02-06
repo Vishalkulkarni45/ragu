@@ -162,25 +162,24 @@ impl<F: Field, R: Rank> AddAssign<&super::structured::Polynomial<F, R>> for Poly
 #[test]
 fn test_add_structured() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<13>;
 
-    let p = super::structured::Polynomial::<Fp, R>::random(&mut thread_rng());
+    let p = super::structured::Polynomial::<Fp, R>::random(&mut rand::rng());
 
     let mut q = super::structured::Polynomial::<Fp, R>::new();
     for i in 0..R::n() {
         if i % 7 == 0 {
-            q.u.push(Fp::random(thread_rng()));
+            q.u.push(Fp::random(&mut rand::rng()));
         }
         if i % 5 == 0 {
-            q.v.push(Fp::random(thread_rng()));
+            q.v.push(Fp::random(&mut rand::rng()));
         }
         if i % 3 == 0 {
-            q.w.push(Fp::random(thread_rng()));
+            q.w.push(Fp::random(&mut rand::rng()));
         }
         if i % 2 == 0 {
-            q.d.push(Fp::random(thread_rng()));
+            q.d.push(Fp::random(&mut rand::rng()));
         }
     }
 

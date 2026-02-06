@@ -364,20 +364,19 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 #[test]
 fn test_eval() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<6>;
 
     for insertions in 0..R::n() {
         let mut poly = Polynomial::<Fp, R>::new();
         for _ in 0..insertions {
-            poly.u.push(Fp::random(thread_rng()));
-            poly.v.push(Fp::random(thread_rng()));
-            poly.w.push(Fp::random(thread_rng()));
-            poly.d.push(Fp::random(thread_rng()));
+            poly.u.push(Fp::random(&mut rand::rng()));
+            poly.v.push(Fp::random(&mut rand::rng()));
+            poly.w.push(Fp::random(&mut rand::rng()));
+            poly.d.push(Fp::random(&mut rand::rng()));
         }
 
-        let x = Fp::random(thread_rng());
+        let x = Fp::random(&mut rand::rng());
 
         assert_eq!(
             arithmetic::eval(&poly.unstructured().coeffs, x),
@@ -429,7 +428,6 @@ fn test_backward_forward() {
 #[test]
 fn test_dilate() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<5>;
 
@@ -439,19 +437,19 @@ fn test_dilate() {
                 for insertions_d in 0..R::n() {
                     let mut poly = Polynomial::<Fp, R>::new();
                     for _ in 0..insertions_a {
-                        poly.u.push(Fp::random(thread_rng()));
+                        poly.u.push(Fp::random(&mut rand::rng()));
                     }
                     for _ in 0..insertions_b {
-                        poly.v.push(Fp::random(thread_rng()));
+                        poly.v.push(Fp::random(&mut rand::rng()));
                     }
                     for _ in 0..insertions_c {
-                        poly.w.push(Fp::random(thread_rng()));
+                        poly.w.push(Fp::random(&mut rand::rng()));
                     }
                     for _ in 0..insertions_d {
-                        poly.d.push(Fp::random(thread_rng()));
+                        poly.d.push(Fp::random(&mut rand::rng()));
                     }
-                    let x = Fp::random(thread_rng());
-                    let z = Fp::random(thread_rng());
+                    let x = Fp::random(&mut rand::rng());
+                    let z = Fp::random(&mut rand::rng());
                     let upoly = poly.unstructured();
                     poly.dilate(z);
                     let vpoly = poly.unstructured();
@@ -468,17 +466,16 @@ fn test_dilate() {
 #[test]
 fn test_negate() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<6>;
 
     for insertions in 0..R::n() {
         let mut poly = Polynomial::<Fp, R>::new();
         for _ in 0..insertions {
-            poly.u.push(Fp::random(thread_rng()));
-            poly.v.push(Fp::random(thread_rng()));
-            poly.w.push(Fp::random(thread_rng()));
-            poly.d.push(Fp::random(thread_rng()));
+            poly.u.push(Fp::random(&mut rand::rng()));
+            poly.v.push(Fp::random(&mut rand::rng()));
+            poly.w.push(Fp::random(&mut rand::rng()));
+            poly.d.push(Fp::random(&mut rand::rng()));
         }
 
         let original = poly.clone();
@@ -502,7 +499,7 @@ fn test_negate() {
             assert_eq!(*negated, -*orig);
         }
 
-        let x = Fp::random(thread_rng());
+        let x = Fp::random(&mut rand::rng());
         assert_eq!(poly.eval(x), -original.eval(x));
     }
 }
@@ -510,12 +507,11 @@ fn test_negate() {
 #[test]
 fn test_constant_term() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<6>;
 
     let mut poly = Polynomial::<Fp, R>::new();
-    let random_value = Fp::random(thread_rng());
+    let random_value = Fp::random(&mut rand::rng());
 
     *poly.constant_term() = random_value;
 
@@ -528,7 +524,6 @@ fn test_constant_term() {
 #[test]
 fn test_prod() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<7>;
 
@@ -536,8 +531,8 @@ fn test_prod() {
     {
         let rx = rx.forward();
         for _ in 0..R::n() {
-            let a = Fp::random(thread_rng());
-            let b = Fp::random(thread_rng());
+            let a = Fp::random(&mut rand::rng());
+            let b = Fp::random(&mut rand::rng());
 
             rx.a.push(a);
             rx.b.push(b);
@@ -546,7 +541,7 @@ fn test_prod() {
     }
 
     let mut rzx = rx.clone();
-    let z = Fp::random(thread_rng());
+    let z = Fp::random(&mut rand::rng());
     rzx.dilate(z);
     rzx.add_assign(&R::tz::<Fp>(z));
 
@@ -561,28 +556,27 @@ fn test_prod() {
 fn test_commit_consistency() {
     use arithmetic::Cycle;
     use ragu_pasta::{Fp, Pasta};
-    use rand::thread_rng;
 
     type R = super::R<10>;
 
     let pasta = Pasta::baked();
     let generators = Pasta::host_generators(pasta);
 
-    let blind = Fp::random(thread_rng());
+    let blind = Fp::random(&mut rand::rng());
 
     let mut poly = Polynomial::<Fp, R>::new();
 
     for _ in 0..R::n() / 4 {
-        poly.u.push(Fp::random(thread_rng()));
+        poly.u.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..R::n() / 3 {
-        poly.v.push(Fp::random(thread_rng()));
+        poly.v.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..R::n() / 2 {
-        poly.w.push(Fp::random(thread_rng()));
+        poly.w.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..R::n() {
-        poly.d.push(Fp::random(thread_rng()));
+        poly.d.push(Fp::random(&mut rand::rng()));
     }
 
     let structured_commitment = poly.commit(generators, blind);
@@ -594,7 +588,6 @@ fn test_commit_consistency() {
 #[test]
 fn test_product_with_dot() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<5>;
 
@@ -602,29 +595,29 @@ fn test_product_with_dot() {
     let mut poly2 = Polynomial::<Fp, R>::new();
 
     for _ in 0..3 {
-        poly1.u.push(Fp::random(thread_rng()));
+        poly1.u.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..5 {
-        poly1.v.push(Fp::random(thread_rng()));
+        poly1.v.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..7 {
-        poly1.w.push(Fp::random(thread_rng()));
+        poly1.w.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..2 {
-        poly1.d.push(Fp::random(thread_rng()));
+        poly1.d.push(Fp::random(&mut rand::rng()));
     }
 
     for _ in 0..4 {
-        poly2.u.push(Fp::random(thread_rng()));
+        poly2.u.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..6 {
-        poly2.v.push(Fp::random(thread_rng()));
+        poly2.v.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..1 {
-        poly2.w.push(Fp::random(thread_rng()));
+        poly2.w.push(Fp::random(&mut rand::rng()));
     }
     for _ in 0..8 {
-        poly2.d.push(Fp::random(thread_rng()));
+        poly2.d.push(Fp::random(&mut rand::rng()));
     }
 
     assert_eq!(
@@ -639,11 +632,10 @@ fn test_product_with_dot() {
 #[test]
 fn ring_poly_test() {
     use ragu_pasta::Fp;
-    use rand::thread_rng;
 
     type R = super::R<5>;
 
-    let rand = || Fp::random(thread_rng());
+    let rand = || Fp::random(&mut rand::rng());
 
     let little = arithmetic::Domain::<Fp>::new(2);
     let big = arithmetic::Domain::<Fp>::new(3);

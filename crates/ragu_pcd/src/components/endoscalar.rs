@@ -340,7 +340,7 @@ mod tests {
     };
     use ragu_pasta::{Ep, EpAffine, Fp, Fq};
     use ragu_primitives::{Endoscalar, vec::Len};
-    use rand::{Rng, thread_rng};
+    use rand::Rng;
 
     type R = polynomials::R<13>;
 
@@ -416,9 +416,9 @@ mod tests {
         let num_steps = NumStepsLen::<NUM_POINTS>::len();
 
         // Generate random endoscalar and base input points.
-        let endoscalar: Uendo = thread_rng().r#gen();
+        let endoscalar: Uendo = rand::rng().random();
         let base_inputs: [EpAffine; NUM_POINTS] = core::array::from_fn(|_| {
-            (Ep::generator() * <Ep as Group>::Scalar::random(thread_rng())).to_affine()
+            (Ep::generator() * <Ep as Group>::Scalar::random(&mut rand::rng())).to_affine()
         });
 
         // Compute expected final result via Horner over all base inputs.
@@ -453,7 +453,7 @@ mod tests {
 
             let staged_s = staged.clone().into_object()?;
             let ky = staged.ky(())?;
-            let y = Fp::random(thread_rng());
+            let y = Fp::random(&mut rand::rng());
 
             // Verify revdot identities for each stage.
             assert_eq!(endoscalar_rx.revdot(&endoscalar_mask.sy(y, &key)), Fp::ZERO);
@@ -486,9 +486,9 @@ mod tests {
         assert_eq!(InputsLen::<NUM_POINTS>::len(), 10);
 
         // Generate random endoscalar and base input points.
-        let endoscalar: Uendo = thread_rng().r#gen();
+        let endoscalar: Uendo = rand::rng().random();
         let base_inputs: [EpAffine; NUM_POINTS] = core::array::from_fn(|_| {
-            (Ep::generator() * <Ep as Group>::Scalar::random(thread_rng())).to_affine()
+            (Ep::generator() * <Ep as Group>::Scalar::random(&mut rand::rng())).to_affine()
         });
 
         // Compute expected final result via Horner over all base inputs.
@@ -517,7 +517,7 @@ mod tests {
 
             let staged_s = staged.clone().into_object()?;
             let ky = staged.ky(())?;
-            let y = Fp::random(thread_rng());
+            let y = Fp::random(&mut rand::rng());
 
             let endoscalar_rx = <EndoscalarStage as StageExt<Fp, R>>::rx(endoscalar)?;
             let points_rx = <PointsStage<EpAffine, NUM_POINTS> as StageExt<Fp, R>>::rx(&points)?;
@@ -624,9 +624,9 @@ mod tests {
     fn test_points_witness_new() {
         /// Verifies PointsWitness::new produces identical results to manual construction.
         fn check<const NUM_POINTS: usize>() {
-            let endoscalar: Uendo = thread_rng().r#gen();
+            let endoscalar: Uendo = rand::rng().random();
             let base_inputs: [EpAffine; NUM_POINTS] = core::array::from_fn(|_| {
-                (Ep::generator() * <Ep as Group>::Scalar::random(thread_rng())).to_affine()
+                (Ep::generator() * <Ep as Group>::Scalar::random(&mut rand::rng())).to_affine()
             });
 
             // Compute via PointsWitness::new

@@ -484,7 +484,6 @@ mod tests {
     use ff::PrimeField;
     use ragu_core::Result;
     use ragu_pasta::{Fp, Pasta};
-    use rand::thread_rng;
 
     type TestRank = R<8>;
     type TestRegistryBuilder<'a> = RegistryBuilder<'a, Fp, TestRank>;
@@ -527,9 +526,9 @@ mod tests {
             .register_circuit(SquareCircuit { times: 19 })?
             .finalize(poseidon)?;
 
-        let w = Fp::random(thread_rng());
-        let x = Fp::random(thread_rng());
-        let y = Fp::random(thread_rng());
+        let w = Fp::random(&mut rand::rng());
+        let x = Fp::random(&mut rand::rng());
+        let y = Fp::random(&mut rand::rng());
 
         let xy_poly = registry.xy(x, y);
         let wy_poly = registry.wy(w, y);
@@ -661,9 +660,9 @@ mod tests {
             let expected_domain_size = num_circuits.next_power_of_two();
             assert_eq!(registry.domain.n(), expected_domain_size);
 
-            let w = Fp::random(thread_rng());
-            let x = Fp::random(thread_rng());
-            let y = Fp::random(thread_rng());
+            let w = Fp::random(&mut rand::rng());
+            let x = Fp::random(&mut rand::rng());
+            let y = Fp::random(&mut rand::rng());
 
             let wxy = registry.wxy(w, x, y);
             let xy = registry.xy(x, y);
